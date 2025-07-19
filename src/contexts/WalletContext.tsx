@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, ReactNode, useCallback } from "react";
+import { createContext, useContext, ReactNode, useCallback, useState, useEffect } from "react";
 import { useActiveAccount, useConnect, useDisconnect, useActiveWallet } from "thirdweb/react";
 import { createWallet } from "thirdweb/wallets";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
@@ -21,7 +21,15 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const wallet = useActiveWallet();
   const { connect, isConnecting, error } = useConnect();
   const { disconnect } = useDisconnect();
-  const [walletAddress, setWalletAddress] = useLocalStorage<string | null>('walletAddress', null);
+  
+  // Initialize with null and update in useEffect to handle SSR
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  
+  useEffect(() => {
+    // This code runs only on the client side
+    const storedAddress = typeof window !== 'undefined' ? localStorage.getItem('walletAddress') : null;
+    setWalletAddress(storedAddress);
+  }, []);
 
   const handleConnect = useCallback(async () => {
     try {
@@ -30,26 +38,35 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       // Store the wallet address in localStorage when connected
       const account = wallet?.getAccount();
       if (account?.address) {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('walletAddress', account.address);
+        }
         setWalletAddress(account.address);
       }
     } catch (err) {
       console.error("Failed to connect wallet:", err);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('walletAddress');
+      }
       setWalletAddress(null);
       throw err;
     }
-  }, [connect, setWalletAddress]);
+  }, [connect]);
 
   const handleDisconnect = useCallback(async () => {
     try {
       if (wallet) {
         await disconnect(wallet);
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('walletAddress');
+        }
         setWalletAddress(null);
       }
     } catch (err) {
       console.error("Failed to disconnect wallet:", err);
       throw err;
     }
-  }, [wallet, disconnect, setWalletAddress]);
+  }, [wallet, disconnect]);
 
   const value = {
     account,

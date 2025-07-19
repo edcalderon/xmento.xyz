@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   Wallet as ComposerWallet,
   Avatar,
@@ -28,21 +28,23 @@ export function Wallet({
   const [isMounted, setIsMounted] = useState(false);
   const { account, isConnected, connect, disconnect } = useWallet();
 
-  // Only render on the client side
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  const handleConnect = () => {
-    if (isConnected) {
-      disconnect();
-    } else {
-      connect();
-      onConnect?.();
+  const handleConnect = useCallback(async () => {
+    try {
+      if (isConnected) {
+        await disconnect();
+      } else {
+        await connect();
+        onConnect?.();
+      }
+    } catch (error) {
+      console.error('Wallet connection error:', error);
     }
-  };
+  }, [isConnected, connect, disconnect, onConnect]);
 
-  // Don't render anything on the server
   if (!isMounted) {
     return null;
   }

@@ -2,17 +2,43 @@
 
 import { useState, useEffect, useCallback } from 'react';
 
+// Helper function to safely access localStorage
+const safeLocalStorage = {
+  getItem: (key: string) => {
+    if (typeof window === 'undefined') return null;
+    try {
+      return window.localStorage.getItem(key);
+    } catch (error) {
+      console.error('Error accessing localStorage:', error);
+      return null;
+    }
+  },
+  setItem: (key: string, value: string) => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(key, value);
+    } catch (error) {
+      console.error('Error setting localStorage:', error);
+    }
+  },
+  removeItem: (key: string) => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.removeItem(key);
+    } catch (error) {
+      console.error('Error removing from localStorage:', error);
+    }
+  }
+};
+
 export function useLocalStorage<T>(
   key: string, 
   initialValue: T
 ): [T, (value: T | ((val: T) => T)) => void] {
   // State to store our value
   const [storedValue, setStoredValue] = useState<T>(() => {
-    if (typeof window === 'undefined') {
-      return initialValue;
-    }
     try {
-      const item = window.localStorage.getItem(key);
+      const item = safeLocalStorage.getItem(key);
       return item ? JSON.parse(item) : initialValue;
     } catch (error) {
       console.error('Error reading from localStorage:', error);
@@ -29,10 +55,8 @@ export function useLocalStorage<T>(
       // Save to state
       setStoredValue(valueToStore);
       
-      // Save to local storage (only in browser)
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem(key, JSON.stringify(valueToStore));
-      }
+      // Save to local storage
+      safeLocalStorage.setItem(key, JSON.stringify(valueToStore));
     } catch (error) {
       console.error('Error saving to localStorage:', error);
     }
@@ -40,12 +64,10 @@ export function useLocalStorage<T>(
 
   // Update local storage when the key changes
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    
     const handleStorageChange = (event: StorageEvent) => {
       if (event.key === key) {
         try {
-          const item = window.localStorage.getItem(key);
+          const item = safeLocalStorage.getItem(key);
           setStoredValue(item ? JSON.parse(item) : initialValue);
         } catch (error) {
           console.error('Error handling storage change:', error);
@@ -53,8 +75,11 @@ export function useLocalStorage<T>(
       }
     };
 
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    // Only add event listener in browser environment
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', handleStorageChange);
+      return () => window.removeEventListener('storage', handleStorageChange);
+    }
   }, [key, initialValue]);
 
   return [storedValue, setValue];
