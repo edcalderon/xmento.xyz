@@ -1,13 +1,15 @@
 {
   "private": true,
-  "version": "0.0.1",
-    "scripts": {
+  "version": "0.0.2",
+  "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start"
   },
   "dependencies": {
     "@composer-kit/ui": "^0.0.2",
+    "@nomicfoundation/hardhat-toolbox": "^6.1.0",
+    "@openzeppelin/contracts": "^5.4.0",
     "@radix-ui/react-accordion": "^1.2.3",
     "@radix-ui/react-alert-dialog": "^1.1.6",
     "@radix-ui/react-aspect-ratio": "^1.1.2",
@@ -26,6 +28,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.0.4",
     "embla-carousel-react": "^8.5.2",
+    "ethers": "^6.15.0",
     "lucide-react": "^0.468.0",
     "next": "^15.4.2",
     "next-themes": "^0.3.0",
@@ -52,6 +55,7 @@
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "hardhat": "^2.26.0",
     "postcss": "^8",
     "tailwind-merge": "^2",
     "tailwindcss": "^3",
