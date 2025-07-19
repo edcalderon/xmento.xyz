@@ -58,7 +58,7 @@ export function Balance({
       className={`flex items-center justify-center bg-white dark:bg-black p-4 rounded-lg ${className}`}
     >
       <div className="w-96 p-4 bg-white dark:bg-black rounded-lg shadow-lg">
-        <ComposerBalance precision={precision}>
+        <ComposerBalance>
           {children || (
             <>
               <div className="flex flex-col gap-4">

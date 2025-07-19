@@ -15,7 +15,6 @@ type SocialTag = "github" | "twitter";
 interface IdentityProps {
   address?: Address;
   token?: Token;
-  isTruncated?: boolean;
   className?: string;
   children?: React.ReactNode;
 }
@@ -23,7 +22,6 @@ interface IdentityProps {
 export function Identity({
   address = "0xE1061b397cC3C381E95a411967e3F053A7c50E70",
   token = "cUSD",
-  isTruncated = false,
   className = "",
   children,
 }: IdentityProps) {
@@ -34,7 +32,6 @@ export function Identity({
           address={address}
           className={`flex gap-4 items-center ${className}`}
           token={token}
-          isTruncated={isTruncated}
         >
           {children || (
             <>

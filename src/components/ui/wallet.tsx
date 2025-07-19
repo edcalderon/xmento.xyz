@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from 'react';
 import {
   Wallet as ComposerWallet,
   Avatar,
@@ -24,7 +25,13 @@ export function Wallet({
   onConnect,
   isTruncated = false,
 }: WalletProps) {
+  const [isMounted, setIsMounted] = useState(false);
   const { account, isConnected, connect, disconnect } = useWallet();
+
+  // Only render on the client side
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const handleConnect = () => {
     if (isConnected) {
@@ -34,6 +41,11 @@ export function Wallet({
       onConnect?.();
     }
   };
+
+  // Don't render anything on the server
+  if (!isMounted) {
+    return null;
+  }
 
   return (
     <div
