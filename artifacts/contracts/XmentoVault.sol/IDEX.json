@@ -7,22 +7,17 @@
       "inputs": [
         {
           "internalType": "address",
-          "name": "fromToken",
+          "name": "from",
           "type": "address"
         },
         {
           "internalType": "address",
-          "name": "toToken",
+          "name": "to",
           "type": "address"
         },
         {
           "internalType": "uint256",
           "name": "amount",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "minOut",
           "type": "uint256"
         }
       ],
