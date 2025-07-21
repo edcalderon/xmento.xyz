@@ -161,34 +161,84 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       // Clear account state first to prevent any UI glitches
       setAccount(null);
       
-      // Clear all local storage data related to the wallet
+      // Clear all local storage data related to the wallet and vaults
       const keysToRemove = [];
+      // Get all localStorage keys
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && (key.startsWith('vaults_') || key.startsWith('vault_') || key === 'walletAddress')) {
-          keysToRemove.push(key);
+        if (key) {
+          // Match any vault-related keys or wallet address
+          if (key.startsWith('vaults_') || 
+              key.startsWith('vault_') || 
+              key === 'walletAddress' ||
+              key.includes('vault') ||
+              key.includes('user') ||
+              key.includes('wallet')) {
+            keysToRemove.push(key);
+          }
         }
       }
       
-      keysToRemove.forEach(key => localStorage.removeItem(key));
+      // Also clear session storage for good measure
+      sessionStorage.clear();
+      
+      // Remove all matching keys
+      keysToRemove.forEach(key => {
+        try {
+          localStorage.removeItem(key);
+        } catch (e) {
+          console.warn(`Failed to remove ${key} from localStorage:`, e);
+        }
+      });
       
       // Clear any error state
       setError(null);
       
-      // Use a simple approach to disconnect without triggering reconnection
+      // Clear IndexedDB storage if it exists
+      if (window.indexedDB) {
+        try {
+          const dbs = await window.indexedDB.databases();
+          dbs.forEach(db => {
+            if (db.name) {
+              window.indexedDB.deleteDatabase(db.name);
+            }
+          });
+        } catch (e) {
+          console.warn('Failed to clear IndexedDB:', e);
+        }
+      }
+      
+      // Clear service worker caches
+      if ('caches' in window) {
+        try {
+          const cacheNames = await caches.keys();
+          await Promise.all(cacheNames.map(cacheName => caches.delete(cacheName)));
+        } catch (e) {
+          console.warn('Failed to clear caches:', e);
+        }
+      }
+      
+      // Clear any remaining event listeners
       if (isMetaMaskInstalled && (window as any).ethereum?.removeAllListeners) {
         try {
           // Remove all event listeners to prevent reconnection
           (window as any).ethereum.removeAllListeners();
+          // Also try to reset the provider
+          if (typeof (window as any).ethereum._handleDisconnect === 'function') {
+            (window as any).ethereum._handleDisconnect();
+          }
         } catch (err) {
-          console.log('Error removing event listeners:', err);
+          console.warn('Error cleaning up ethereum provider:', err);
         }
       }
       
-      // Small delay before reload to ensure state is cleared
+      // Force a hard reset of the application state
       setTimeout(() => {
-        window.location.reload();
-      }, 50);
+        // Clear any remaining data and reload
+        window.localStorage.clear();
+        window.sessionStorage.clear();
+        window.location.href = window.location.origin + window.location.pathname;
+      }, 100);
       
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to disconnect');
