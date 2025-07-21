@@ -1,7 +1,8 @@
 {
   "compilerOptions": {
     "target": "esnext",
-    "module": "commonjs",
+    "module": "esnext",
+    "moduleResolution": "bundler",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
@@ -9,7 +10,6 @@
     "skipLibCheck": true,
     "outDir": "dist",
     "rootDir": ".",
-    "moduleResolution": "node",
     "resolveJsonModule": true,
     "typeRoots": [
       "./node_modules/@types",
@@ -19,12 +19,16 @@
       "node"
     ],
     "lib": [
-      "esnext"
+      "esnext",
+      "dom"
     ],
     "baseUrl": ".",
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@composer-kit/*": [
+        "./node_modules/@composer-kit/*"
       ]
     },
     "allowJs": true,

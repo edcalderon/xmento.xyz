@@ -1,234 +1,305 @@
 'use client';
 
-import { useState } from 'react';
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { parseEther, formatEther } from 'viem';
+import { useState, useEffect } from 'react';
+import { useAccount, useReadContract, useWriteContract, useChainId, usePublicClient } from 'wagmi';
+import { mainnet, celoAlfajores } from 'viem/chains';
+import { WalletConnector } from './wallet-connector';
+import { parseEther, formatEther, Address } from 'viem';
+import { XmentoVaultABI } from './XmentoVaultABI';
+import { XmentoVaultFactoryABI } from './XmentoVaultFactoryABI';
+import { useToast } from '@/components/ui/use-toast';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { VaultView } from './VaultView';
+import { AdminView } from './AdminView';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
-import { XmentoVaultABI } from '@/components/vault/XmentoVaultABI';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertCircle } from 'lucide-react';
 
-const VAULT_ADDRESS = '0xYourVaultAddress' as `0x${string}`; // Replace with your deployed vault address
+// Token configuration
+export const TOKENS = {
+  cUSD: { name: 'Celo Dollar', symbol: 'cUSD', decimals: 18 },
+  cEUR: { name: 'Celo Euro', symbol: 'cEUR', decimals: 18 },
+  cREAL: { name: 'Celo Real', symbol: 'cREAL', decimals: 18 },
+} as const;
 
-// Mock APY data until we connect to the actual contract
-const MOCK_APYS = [5, 2, 3]; // cUSD, cEUR, cREAL APY percentages
+export type TokenSymbol = keyof typeof TOKENS;
+
+// Contract addresses by network
+const CONTRACT_ADDRESSES = {
+  [mainnet.id]: {
+    factory: '0xYourMainnetFactoryAddress' as `0x${string}`,
+  },
+  [celoAlfajores.id]: {
+    factory: process.env.NEXT_PUBLIC_FACTORY_ADDRESS as `0x${string}` || '0x36eA57D1D52cd475aD6d842a18EDa975Eb88A31E',
+  },
+} as const;
+
+// Default to Alfajores if not specified
+const DEFAULT_CHAIN = celoAlfajores.id;
+
+type BrowserWindow = Window & typeof globalThis & {
+  ethereum?: any;
+  localStorage: {
+    getItem: (key: string) => string | null;
+    setItem: (key: string, value: string) => void;
+  };
+};
+
+declare const window: BrowserWindow | undefined;
 
 export function VaultInteraction() {
-  const { address, isConnected } = useAccount();
-  const [depositAmount, setDepositAmount] = useState('');
-  const [withdrawAmount, setWithdrawAmount] = useState('');
-  const [selectedToken, setSelectedToken] = useState('cUSD');
-
-  // Mock data for now - replace with actual contract calls
-  const tokenBalance = BigInt(0);
-  const tvl = BigInt(0);
-  const apys = MOCK_APYS;
-
-  const { 
-    writeContract: deposit, 
-    isPending: isDepositPending, 
-    data: depositHash 
-  } = useWriteContract();
+  const { address, isConnected, chain } = useAccount();
+  const chainId = chain?.id || DEFAULT_CHAIN;
+  const { toast } = useToast();
+  const publicClient = usePublicClient();
   
-  const { isLoading: isDepositProcessing } = useWaitForTransactionReceipt({
-    hash: depositHash,
+  // State
+  const [selectedToken, setSelectedToken] = useState<TokenSymbol>('cUSD');
+  const [vaultAddress, setVaultAddress] = useState<`0x${string}` | null>(null);
+  const [isWrongNetwork, setIsWrongNetwork] = useState<boolean>(false);
+  const [isManager, setIsManager] = useState<boolean>(false);
+  
+  // Get contract addresses for current network
+  const currentNetworkAddresses = CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES] ||
+    CONTRACT_ADDRESSES[celoAlfajores.id];
+
+  const VAULT_FACTORY_ADDRESS = currentNetworkAddresses.factory;
+  const isSupportedNetwork = chainId in CONTRACT_ADDRESSES;
+
+  // Check if current user is the manager
+  useEffect(() => {
+    setIsManager(address?.toLowerCase() === process.env.NEXT_PUBLIC_MANAGER_ADDRESS?.toLowerCase());
+  }, [address]);
+
+  // Update network status when chain changes
+  useEffect(() => {
+    if (chain) {
+      const isWrong = !(chain.id in CONTRACT_ADDRESSES);
+      setIsWrongNetwork(isWrong);
+
+      if (isWrong) {
+        toast({
+          title: 'Unsupported Network',
+          description: 'Please switch to Celo Mainnet or Alfajores Testnet',
+          variant: 'destructive',
+        });
+      }
+    }
+  }, [chain, toast]);
+
+  // Check for deployed vault when address or chain changes
+  const { data: hasVault } = useReadContract({
+    address: currentNetworkAddresses.factory,
+    abi: XmentoVaultFactoryABI,
+    functionName: 'userToVault',
+    args: [address as `0x${string}`],
+    chainId,
+    query: {
+      enabled: !!address && isSupportedNetwork,
+    },
   });
 
-  // Withdraw function
-  const { 
-    writeContract: withdraw, 
-    isPending: isWithdrawPending, 
-    data: withdrawHash 
-  } = useWriteContract();
-  
-  const { isLoading: isWithdrawProcessing } = useWaitForTransactionReceipt({
-    hash: withdrawHash,
-  });
+  useEffect(() => {
+    const checkForVault = async () => {
+      if (typeof window !== 'undefined' && address && isSupportedNetwork) {
+        const win = window as BrowserWindow;
+        const storageKey = `vault_${chainId}_${address}`;
+        const savedVault = win?.localStorage.getItem(storageKey);
 
-  // Derived states
-  const isDepositing = isDepositPending || isDepositProcessing;
-  const isWithdrawing = isWithdrawPending || isWithdrawProcessing;
+        if (savedVault) {
+          setVaultAddress(savedVault as `0x${string}`);
+        } else if (hasVault && hasVault !== '0x0000000000000000000000000000000000000000') {
+          setVaultAddress(hasVault as `0x${string}`);
+          win?.localStorage.setItem(storageKey, hasVault);
+        }
+      }
+    };
 
-  const handleDeposit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!depositAmount || !parseFloat(depositAmount) || !address) return;
-    
-    deposit({
-      address: VAULT_ADDRESS,
-      abi: XmentoVaultABI,
-      functionName: 'deposit',
-      args: [selectedToken, parseEther(depositAmount)],
-    });
+    checkForVault();
+  }, [address, chainId, hasVault, isSupportedNetwork]);
+
+  // Handle token change
+  const handleTokenChange = (token: TokenSymbol) => {
+    setSelectedToken(token);
   };
 
-  const handleWithdraw = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!withdrawAmount || !parseFloat(withdrawAmount) || !address) return;
+  // Get writeContract function from wagmi
+  const { writeContract } = useWriteContract();
+
+  // Handle vault creation
+  const handleCreateVault = async () => {
+    if (!address || !publicClient) return;
     
-    withdraw({
-      address: VAULT_ADDRESS,
-      abi: XmentoVaultABI,
-      functionName: 'withdraw',
-      args: [parseEther(withdrawAmount)],
-    });
+    try {
+      // Use the writeContract function and handle the Promise
+      const result = await new Promise<`0x${string}`>((resolve, reject) => {
+        writeContract({
+          address: VAULT_FACTORY_ADDRESS,
+          abi: XmentoVaultFactoryABI,
+          functionName: 'createVault',
+          args: [],
+          chainId,
+        }, {
+          onSuccess: (hash) => resolve(hash as `0x${string}`),
+          onError: (error) => reject(error)
+        });
+      });
+      
+      const receipt = await publicClient.waitForTransactionReceipt({ 
+        hash: result
+      });
+      
+      // Find the VaultCreated event
+      const vaultCreatedEvent = receipt.logs.find(
+        (log) => log.topics[0] === '0xb8b2c1a2c2310fce50d68d9a9c3999094974e5892513643ce5d0bd72058f0305' // keccak256('VaultCreated(address,address)')
+      );
+      
+      if (vaultCreatedEvent?.topics?.[2]) {
+        const topic = vaultCreatedEvent.topics[2];
+        const newVaultAddress = `0x${topic.slice(-40)}` as `0x${string}`;
+        setVaultAddress(newVaultAddress);
+        
+        // Save to local storage
+        if (typeof window !== 'undefined') {
+          const win = window as BrowserWindow;
+          const storageKey = `vault_${chainId}_${address}`;
+          win?.localStorage.setItem(storageKey, newVaultAddress);
+        }
+      } else {
+        console.error('Invalid vault created event format');
+        toast({
+          title: 'Error',
+          description: 'Failed to process vault creation. Please try again.',
+          variant: 'destructive',
+        });
+        
+        toast({
+          title: 'Vault created',
+          description: 'Your vault has been created successfully!',
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Error creating vault',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
   };
 
   return (
-    <div className="space-y-8">
-      {/* Vault Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Your Balance</CardTitle>
-            <CardDescription>Total value in the vault</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">
-              {tokenBalance ? formatEther(tokenBalance as bigint) : '0.00'} cUSD
-            </p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader>
-            <CardTitle>Total Value Locked</CardTitle>
-            <CardDescription>Across all users</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">
-              {tvl ? formatEther(tvl as bigint) : '0.00'} cUSD
-            </p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader>
-            <CardTitle>Current APY</CardTitle>
-            <CardDescription>Estimated annual yield</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">
-              {apys ? `${(apys as number[])[0] / 100}%` : 'Loading...'}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+    <div className="container mx-auto p-4 max-w-4xl">
+      <h1 className="text-3xl font-bold mb-6">Xmento Vault</h1>
+      
+      {!isConnected ? (
+        <div className="text-center py-12">
+          <h2 className="text-xl font-semibold mb-4">Connect your wallet to continue</h2>
+          <button 
+            onClick={() => {}}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Connect Wallet
+          </button>
+        </div>
+      ) : isWrongNetwork ? (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Unsupported Network</AlertTitle>
+          <AlertDescription>
+            Please switch to a supported network to interact with the vault.
+          </AlertDescription>
+        </Alert>
+      ) : !vaultAddress ? (
+        <div className="text-center py-12">
+          <h2 className="text-xl font-semibold mb-4">Create your vault to get started</h2>
+          <button 
+            onClick={handleCreateVault}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Create Vault
+          </button>
+        </div>
+      ) : (
+        <Tabs defaultValue="vault" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="vault">Vault</TabsTrigger>
+            {isManager && <TabsTrigger value="admin">Admin</TabsTrigger>}
+          </TabsList>
+          
+          <TabsContent value="vault" className="mt-6">
+            <VaultView 
+              vaultAddress={vaultAddress}
+              isManager={isManager}
+              chainId={chainId}
+              selectedToken={selectedToken}
+              onTokenChange={handleTokenChange}
+              isWrongNetwork={isWrongNetwork}
+            />
 
-      {/* Deposit/Withdraw Tabs */}
-      <Tabs defaultValue="deposit" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="deposit">Deposit</TabsTrigger>
-          <TabsTrigger value="withdraw">Withdraw</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="deposit">
-          <Card>
-            <CardHeader>
-              <CardTitle>Deposit Funds</CardTitle>
-              <CardDescription>Add funds to your vault position</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleDeposit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Token</label>
-                  <select
-                    value={selectedToken}
-                    onChange={(e) => setSelectedToken(e.target.value)}
-                    className="w-full p-2 border rounded"
-                  >
-                    <option value="cUSD">cUSD</option>
-                    <option value="cEUR">cEUR</option>
-                    <option value="cREAL">cREAL</option>
-                  </select>
+            {/* Vault Stats */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Vault Statistics</CardTitle>
+                <CardDescription>Overview of your vault's performance</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="p-4 border rounded-lg">
+                    <h3 className="text-sm font-medium text-muted-foreground">TVL</h3>
+                    <p className="text-2xl font-bold">-</p>
+                  </div>
+                  <div className="p-4 border rounded-lg">
+                    <h3 className="text-sm font-medium text-muted-foreground">APY</h3>
+                    <p className="text-2xl font-bold">-</p>
+                  </div>
+                  <div className="p-4 border rounded-lg">
+                    <h3 className="text-sm font-medium text-muted-foreground">Your Balance</h3>
+                    <p className="text-2xl font-bold">-</p>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Amount</label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0.00"
-                    value={depositAmount}
-                    onChange={(e) => setDepositAmount(e.target.value)}
-                  />
-                </div>
-                <Button 
-                  type="submit" 
-                  className="w-full"
-                  disabled={!deposit || isDepositing}
-                >
-                  {isDepositing ? 'Processing...' : 'Deposit'}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="withdraw">
-          <Card>
-            <CardHeader>
-              <CardTitle>Withdraw Funds</CardTitle>
-              <CardDescription>Withdraw from your vault position</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleWithdraw} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Amount</label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0.00"
-                    value={withdrawAmount}
-                    onChange={(e) => setWithdrawAmount(e.target.value)}
-                  />
-                </div>
-                <Button 
-                  type="submit" 
-                  className="w-full"
-                  variant="outline"
-                  disabled={!withdraw || isWithdrawing}
-                >
-                  {isWithdrawing ? 'Processing...' : 'Withdraw'}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-
-      {/* Allocation Chart */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Portfolio Allocation</CardTitle>
-          <CardDescription>Current asset distribution</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+              </CardContent>
+            </Card>
+          </TabsContent>
+          <TabsContent value="admin">
+            <AdminView vaultAddress={vaultAddress} chainId={chainId} />
+          </TabsContent>
+        </Tabs>
+      )}
+      {!isManager && (
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div>
-            <div className="flex justify-between mb-1">
-              <span>cUSD</span>
-              <span>{apys ? `${(apys as number[])[0]}%` : '0%'}</span>
-            </div>
-            <Progress value={apys ? (apys as number[])[0] : 0} className="h-2" />
+            <h1 className="text-3xl font-bold">Xmento Vault</h1>
+            {isConnected && (
+              <div className="flex flex-col gap-1 text-sm text-muted-foreground">
+                <div>{chain?.name || 'Unknown Network'}</div>
+                {vaultAddress && (
+                  <div className="flex items-center gap-2">
+                    <span>Vault: {`${vaultAddress.slice(0, 6)}...${vaultAddress.slice(-4)}`}</span>
+                    <span className={`px-2 py-0.5 text-xs rounded-full ${isManager ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                      {isManager ? 'Manager' : 'User'}
+                    </span>
+                    <a 
+                      href={`https://${chainId === celoAlfajores.id ? 'alfajores.celoscan.io/address/' : 'etherscan.io/address/'}${vaultAddress}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-500 hover:text-blue-700"
+                      title="View on explorer"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                    </a>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-          <div>
-            <div className="flex justify-between mb-1">
-              <span>cEUR</span>
-              <span>{apys ? `${(apys as number[])[1]}%` : '0%'}</span>
-            </div>
-            <Progress value={apys ? (apys as number[])[1] : 0} className="h-2" />
-          </div>
-          <div>
-            <div className="flex justify-between mb-1">
-              <span>cREAL</span>
-              <span>{apys ? `${(apys as number[])[2]}%` : '0%'}</span>
-            </div>
-            <Progress value={apys ? (apys as number[])[2] : 0} className="h-2" />
-          </div>
-        </CardContent>
-      </Card>
+          <WalletConnector />
+        </div>
+      )}
     </div>
   );
 }

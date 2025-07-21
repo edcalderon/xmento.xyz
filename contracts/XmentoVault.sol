@@ -24,7 +24,7 @@ interface IXmentoVaultFactory {
 }
 
 // Dummy DEX interface for swaps (mock only)
-contract DummyDex {
+contract DummyDexMock {
     function swap(address from, address to, uint256 amount) external pure returns (uint256) {
         return amount; // mock: return same amount for simplicity
     }
@@ -145,7 +145,7 @@ contract XmentoVault is
         emit VaultInitialized(msg.sender, address(this));
     }
     
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+    function _authorizeUpgrade(address) internal override onlyOwner {}
     
     // Modifier to check if the contract is initialized for testing
     modifier whenInitialized() {
@@ -163,7 +163,7 @@ contract XmentoVault is
     event DebugLog(string message, bytes values);
     
 
-    function deposit(address token, uint256 amount) external nonReentrant whenInitialized {
+    function deposit(address token, uint256 amount) public virtual nonReentrant whenInitialized {
         // Check for zero address and amount
         emit DebugLog("1. Starting deposit", abi.encodePacked("token: ", token, " amount: ", amount));
         require(token != address(0), "XMV: Token address cannot be zero");

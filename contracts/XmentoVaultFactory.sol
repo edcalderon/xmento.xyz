@@ -8,6 +8,7 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 // Interface for the vault
 interface IXmentoVault {
@@ -19,6 +20,8 @@ interface IXmentoVault {
         address _dex,
         address _yieldOracle
     ) external;
+    
+    function deposit(address token, uint256 amount) external;
 }
 
 /**
@@ -26,7 +29,7 @@ interface IXmentoVault {
  * @dev Factory contract for creating and managing XmentoVault instances
  * @notice This contract implements reentrancy protection and follows the Checks-Effects-Interactions pattern
  */
-contract XmentoVaultFactory is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, AccessControlUpgradeable {
+contract XmentoVaultFactory is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, AccessControlUpgradeable, UUPSUpgradeable {
     // Mapping from user address to their vault address
     mapping(address => address) public userToVault;
     
@@ -85,10 +88,16 @@ contract XmentoVaultFactory is Initializable, OwnableUpgradeable, ReentrancyGuar
         address _dex,
         address _yieldOracle
     ) public initializer {
-        // Initialize parent contracts
         __Ownable_init();
         __ReentrancyGuard_init();
         __AccessControl_init();
+        __UUPSUpgradeable_init();
+        
+        // Transfer ownership to the deployer
+        _transferOwnership(msg.sender);
+        
+        // Grant the deployer the default admin role
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         
         // Validate parameters
         require(_vaultImplementation != address(0), "Invalid implementation address");
@@ -156,6 +165,16 @@ contract XmentoVaultFactory is Initializable, OwnableUpgradeable, ReentrancyGuar
         vaultImplementation = implementation;
         emit ImplementationUpdated(implementation);
     }
+    
+    /**
+     * @dev Authorize the upgrade. Only the owner can upgrade the contract.
+     * @param newImplementation The address of the new implementation
+     */
+    function _authorizeUpgrade(address newImplementation) 
+        internal 
+        override 
+        onlyOwner 
+    {}
     
     /**
      * @dev Gets the vault address for a user

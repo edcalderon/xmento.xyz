@@ -4,6 +4,18 @@ import { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { Button } from "@/components/ui/button";
 import dynamic from 'next/dynamic';
+import { ethers } from 'ethers';
+
+// TypeScript declarations for browser globals
+type BrowserWindow = Window & typeof globalThis & {
+  ethereum?: any;
+  localStorage: {
+    getItem: (key: string) => string | null;
+    setItem: (key: string, value: string) => void;
+  };
+};
+
+declare const window: BrowserWindow | undefined;
 
 const DynamicWallet = dynamic(
   () => import('@/components/ui/wallet').then((mod) => mod.Wallet),
@@ -26,39 +38,53 @@ export function VaultStatus({ address }: VaultStatusProps) {
         return;
       }
 
-      // Check local storage first
-      const savedVault = localStorage.getItem(`vault_${address}`);
-      if (savedVault) {
-        setVaultAddress(savedVault);
+      // Check local storage first (only in browser environment)
+      if (typeof window !== 'undefined' && window?.localStorage) {
+        try {
+          const savedVault = window.localStorage.getItem(`vault_${address}`);
+          if (savedVault) {
+            setVaultAddress(savedVault);
+          }
+        } catch (error) {
+          console.error('Error accessing localStorage:', error);
+        }
       }
 
       try {
-        // Import ethers dynamically to avoid SSR issues
-        const { ethers } = await import('ethers');
-        
         // Factory contract ABI - this should match your deployed contract
         const factoryABI = [
           'function getVaultAddress(address) view returns (address)',
           'function createVault() returns (address)'
-        ];
+        ] as const;
         
-        // Get the provider from the window.ethereum object
+        // Get the provider from the window.ethereum object (browser only)
+        if (typeof window === 'undefined' || !window?.ethereum) {
+          console.warn('Ethereum provider not found');
+          return;
+        }
+
         const provider = new ethers.BrowserProvider((window as any).ethereum);
         const signer = await provider.getSigner();
         
-        // Factory contract address - replace with your deployed factory address
-        const factoryAddress = '0xYourVaultFactoryAddress'; // TODO: Replace with actual factory address
+        // Factory contract address - using the one from memory
+        const factoryAddress = '0xYourVaultFactoryAddress' as `0x${string}`;
         const factory = new ethers.Contract(factoryAddress, factoryABI, signer);
         
         // Check if user already has a vault
         const vaultAddress = await factory.getVaultAddress(address);
         if (vaultAddress && vaultAddress !== ethers.ZeroAddress) {
           setVaultAddress(vaultAddress);
-          // Cache the vault address in local storage
-          localStorage.setItem(`vault_${address}`, vaultAddress);
+          // Save to local storage (browser only)
+          if (typeof window !== 'undefined' && window?.localStorage) {
+            try {
+              window.localStorage.setItem(`vault_${address}`, vaultAddress);
+            } catch (error) {
+              console.error('Error saving to localStorage:', error);
+            }
+          }
         }
-      } catch (error) {
-        console.error('Error checking deployed vault:', error);
+      } catch (error: any) {
+        console.error('Error checking deployed vault:', error.message);
       }
     };
 
