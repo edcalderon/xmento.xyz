@@ -7,10 +7,9 @@ import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
 
-export const metadata: Metadata = {
-  title: "Xmento.xyz | StableFX on Celo",
-  description: "Yield on your stablecoins with automated rebalancing",
-};
+import { siteConfig } from '@/config/site';
+
+export const metadata = siteConfig;
 
 export default function RootLayout({
   children,
