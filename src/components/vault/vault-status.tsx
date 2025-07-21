@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
-import { ConnectWallet } from "@/components/wallet/connect-wallet";
+import { WalletConnectButton } from "@/components/wallet/wallet-connect-button";
 import { Button } from "@/components/ui/button";
 import { Copy, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
@@ -97,7 +97,7 @@ export function VaultStatus({ address }: VaultStatusProps) {
 
   // If no wallet is connected, show the connect wallet button with network switcher
   if (!address) {
-    return <ConnectWallet className="w-full sm:w-auto" showNetworkSwitcher={true} />;
+    return <WalletConnectButton className="w-full sm:w-auto" showNetworkSwitcher={true} />;
   }
 
   // If loading, show a skeleton

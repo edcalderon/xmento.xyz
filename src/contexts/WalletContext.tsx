@@ -105,10 +105,18 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   // Connect to MetaMask
   const connect = useCallback(async () => {
+    // Prevent multiple connection attempts
+    if (isConnecting) return;
+    
     if (!isMetaMaskInstalled) {
       const error = new Error('MetaMask is not installed');
       setError(error);
       throw error;
+    }
+    
+    // If already connected, just return
+    if (account?.isConnected) {
+      return;
     }
     
     setIsConnecting(true);
@@ -126,15 +134,18 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       
       const chainId = await ethereum.request({ method: 'eth_chainId' });
       
-      const walletAccount: WalletAccount = {
-        address: accounts[0],
-        chainId: parseInt(chainId, 16),
-        isConnected: true,
-        connectorName: 'MetaMask'
-      };
-      
-      setAccount(walletAccount);
-      localStorage.setItem('walletAddress', accounts[0]);
+      // Only update if we have a new account or different state
+      if (!account || account.address !== accounts[0] || account.isConnected !== true) {
+        const walletAccount: WalletAccount = {
+          address: accounts[0],
+          chainId: parseInt(chainId, 16),
+          isConnected: true,
+          connectorName: 'MetaMask'
+        };
+        
+        setAccount(walletAccount);
+        localStorage.setItem('walletAddress', accounts[0]);
+      }
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to connect to MetaMask');
       setError(error);
@@ -142,21 +153,50 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsConnecting(false);
     }
-  }, [isMetaMaskInstalled]);
+  }, [isMetaMaskInstalled, isConnecting, account]);
   
   // Disconnect from MetaMask
   const disconnect = useCallback(async () => {
     try {
-      // Note: MetaMask doesn't have a disconnect method, we just clear the local state
+      // Clear account state first to prevent any UI glitches
       setAccount(null);
-      localStorage.removeItem('walletAddress');
-      // No return value needed as the function is expected to return Promise<void>
+      
+      // Clear all local storage data related to the wallet
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith('vaults_') || key.startsWith('vault_') || key === 'walletAddress')) {
+          keysToRemove.push(key);
+        }
+      }
+      
+      keysToRemove.forEach(key => localStorage.removeItem(key));
+      
+      // Clear any error state
+      setError(null);
+      
+      // Use a simple approach to disconnect without triggering reconnection
+      if (isMetaMaskInstalled && (window as any).ethereum?.removeAllListeners) {
+        try {
+          // Remove all event listeners to prevent reconnection
+          (window as any).ethereum.removeAllListeners();
+        } catch (err) {
+          console.log('Error removing event listeners:', err);
+        }
+      }
+      
+      // Small delay before reload to ensure state is cleared
+      setTimeout(() => {
+        window.location.reload();
+      }, 50);
+      
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to disconnect');
       setError(error);
+      console.error('Disconnect error:', error);
       throw error;
     }
-  }, []);
+  }, [isMetaMaskInstalled]);
 
   // Check if wallet is connected
   const isConnected = !!account?.isConnected;
