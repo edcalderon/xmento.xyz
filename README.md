@@ -33,7 +33,9 @@
 </table>
 
 <b>How it works:</b>
-        ```
+
+```
+
                 ┌────────────────────┐
                 │    Frontend (Dapp) │
                 └────────┬───────────┘
@@ -58,6 +60,7 @@
 📊 YieldOracle: off-chain bot updates APYs (e.g. cUSD = 4%)
 🔁 Rebalance swaps can be executed manually or with keeper
 🧾 NFT metadata can be shown in frontend to reflect position
+
 ```
 
 <ol>
