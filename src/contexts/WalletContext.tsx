@@ -1,10 +1,8 @@
 "use client";
 
 import { createContext, useContext, ReactNode, useCallback, useState, useEffect } from "react";
-import { useActiveAccount, useConnect, useDisconnect, useActiveWallet } from "thirdweb/react";
-import { createWallet, inAppWallet } from "thirdweb/wallets";
-import { getContract } from "thirdweb";
-import { ethereum } from "thirdweb/chains";
+import { useAccount, useDisconnect as useWagmiDisconnect, useConnect } from "wagmi";
+import { useDisconnect } from "@/hooks/useDisconnect";
 
 export interface WalletAccount {
   address: string;
@@ -28,240 +26,148 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [account, setAccount] = useState<WalletAccount | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  const [wallet, setWallet] = useState<any>(null);
   
-  // Initialize web3 and check if MetaMask is installed
+  // Get wagmi hooks
+  const { address, isConnected, chain } = useAccount();
+  const { connectAsync, connectors } = useConnect();
+  const { disconnect: wagmiDisconnect } = useWagmiDisconnect();
+  const { disconnect: unifiedDisconnect } = useDisconnect();
+  
+  // Update account when wagmi state changes
+  useEffect(() => {
+    if (isConnected && address) {
+      setAccount({
+        address,
+        chainId: chain?.id,
+        isConnected: true,
+        connectorName: 'MetaMask' // Default to MetaMask for now
+      });
+    } else {
+      setAccount(null);
+    }
+  }, [isConnected, address, chain]);
+  
+  // Check if MetaMask is installed
   const isMetaMaskInstalled = typeof window !== 'undefined' && 
     typeof (window as any).ethereum !== 'undefined' && 
     (window as any).ethereum.isMetaMask;
   
-  // Load stored wallet info on mount
+  // Generate a session ID for tracking disconnections
+  const [sessionId] = useState(() => {
+    if (typeof window === 'undefined') {
+      return Math.random().toString(36).substring(2);
+    }
+    
+    const storedId = sessionStorage.getItem('sessionId') || 
+                   localStorage.getItem('sessionId') || 
+                   Math.random().toString(36).substring(2);
+    
+    try {
+      sessionStorage.setItem('sessionId', storedId);
+      localStorage.setItem('sessionId', storedId);
+    } catch (e) {
+      console.warn('Failed to store session ID:', e);
+    }
+    
+    return storedId;
+  });
+
+  // Initialize wallet state on mount
   useEffect(() => {
     const initializeWallet = async () => {
       if (typeof window === 'undefined') return;
       
+      // Check if we have a disconnection flag
+      const disconnectedSessionId = sessionStorage.getItem('walletDisconnected');
+      
+      // If we have a disconnection flag from a previous session, don't auto-connect
+      if (disconnectedSessionId === sessionId) {
+        sessionStorage.removeItem('walletDisconnected');
+        localStorage.removeItem('walletAddress');
+        return;
+      }
+      
+      // Check for stored wallet address
       const storedAddress = localStorage.getItem('walletAddress');
-      if (storedAddress) {
+      if (storedAddress && !disconnectedSessionId) {
         setAccount({
           address: storedAddress,
           isConnected: false,
           connectorName: 'MetaMask'
         });
       }
-      
-      // Check if already connected to MetaMask
-      if (isMetaMaskInstalled && (window as any).ethereum.selectedAddress) {
-        try {
-          const accounts = await (window as any).ethereum.request({ method: 'eth_accounts' });
-          if (accounts.length > 0) {
-            setAccount({
-              address: accounts[0],
-              isConnected: true,
-              connectorName: 'MetaMask',
-              chainId: parseInt((window as any).ethereum.chainId, 16)
-            });
-          }
-        } catch (err) {
-          console.error('Failed to fetch accounts:', err);
-        }
-      }
     };
     
     initializeWallet();
-    
-    // Set up event listeners
-    if (isMetaMaskInstalled) {
-      const handleAccountsChanged = (accounts: string[]) => {
-        if (accounts.length === 0) {
-          // Disconnected
-          setAccount(null);
-          localStorage.removeItem('walletAddress');
-        } else {
-          setAccount(prev => ({
-            ...prev!,
-            address: accounts[0],
-            isConnected: true
-          }));
-          localStorage.setItem('walletAddress', accounts[0]);
-        }
-      };
-      
-      const handleChainChanged = (chainId: string) => {
-        setAccount(prev => ({
-          ...prev!,
-          chainId: parseInt(chainId, 16)
-        }));
-      };
-      
-      (window as any).ethereum.on('accountsChanged', handleAccountsChanged);
-      (window as any).ethereum.on('chainChanged', handleChainChanged);
-      
-      return () => {
-        (window as any).ethereum.removeListener('accountsChanged', handleAccountsChanged);
-        (window as any).ethereum.removeListener('chainChanged', handleChainChanged);
-      };
-    }
-  }, [isMetaMaskInstalled]);
-
-  // Connect to MetaMask
+  }, [sessionId]);
+  
+  // Connect wallet function
   const connect = useCallback(async () => {
-    // Prevent multiple connection attempts
-    if (isConnecting) return;
-    
     if (!isMetaMaskInstalled) {
-      const error = new Error('MetaMask is not installed');
-      setError(error);
-      throw error;
-    }
-    
-    // If already connected, just return
-    if (account?.isConnected) {
-      return;
+      throw new Error('MetaMask is not installed');
     }
     
     setIsConnecting(true);
     setError(null);
     
     try {
-      const ethereum = (window as any).ethereum;
-      
-      // Request account access
-      const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
-      
-      if (accounts.length === 0) {
-        throw new Error('No accounts found');
+      // Use wagmi's connect function
+      const connector = connectors.find(c => c.id === 'metaMask');
+      if (!connector) {
+        throw new Error('MetaMask connector not found');
       }
       
-      const chainId = await ethereum.request({ method: 'eth_chainId' });
-      
-      // Only update if we have a new account or different state
-      if (!account || account.address !== accounts[0] || account.isConnected !== true) {
-        const walletAccount: WalletAccount = {
-          address: accounts[0],
-          chainId: parseInt(chainId, 16),
-          isConnected: true,
-          connectorName: 'MetaMask'
-        };
-        
-        setAccount(walletAccount);
-        localStorage.setItem('walletAddress', accounts[0]);
-      }
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error('Failed to connect to MetaMask');
-      setError(error);
+      await connectAsync({ connector });
+    } catch (error) {
+      console.error('Error connecting wallet:', error);
+      setError(error as Error);
       throw error;
     } finally {
       setIsConnecting(false);
     }
-  }, [isMetaMaskInstalled, isConnecting, account]);
+  }, [isMetaMaskInstalled, connectAsync, connectors]);
   
-  // Disconnect from MetaMask
-  const disconnect = useCallback(async () => {
+  // Disconnect wallet function
+  const disconnect = useCallback(async (): Promise<void> => {
     try {
-      // Clear account state first to prevent any UI glitches
-      setAccount(null);
+      // First try the unified disconnect
+      const success = await unifiedDisconnect({ showToast: true });
       
-      // Clear all local storage data related to the wallet and vaults
-      const keysToRemove = [];
-      // Get all localStorage keys
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key) {
-          // Match any vault-related keys or wallet address
-          if (key.startsWith('vaults_') || 
-              key.startsWith('vault_') || 
-              key === 'walletAddress' ||
-              key.includes('vault') ||
-              key.includes('user') ||
-              key.includes('wallet')) {
-            keysToRemove.push(key);
-          }
-        }
+      // If unifiedDisconnect returns false, it means disconnection failed
+      if (success === false) {
+        throw new Error('Failed to disconnect wallet');
       }
       
-      // Also clear session storage for good measure
-      sessionStorage.clear();
+      // Then ensure wagmi is disconnected
+      wagmiDisconnect();
       
-      // Remove all matching keys
-      keysToRemove.forEach(key => {
-        try {
-          localStorage.removeItem(key);
-        } catch (e) {
-          console.warn(`Failed to remove ${key} from localStorage:`, e);
-        }
-      });
-      
-      // Clear any error state
+      // Clear local state
+      setAccount(null);
       setError(null);
       
-      // Clear IndexedDB storage if it exists
-      if (window.indexedDB) {
-        try {
-          const dbs = await window.indexedDB.databases();
-          dbs.forEach(db => {
-            if (db.name) {
-              window.indexedDB.deleteDatabase(db.name);
-            }
-          });
-        } catch (e) {
-          console.warn('Failed to clear IndexedDB:', e);
-        }
+      // Clear stored wallet address
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('walletAddress');
       }
-      
-      // Clear service worker caches
-      if ('caches' in window) {
-        try {
-          const cacheNames = await caches.keys();
-          await Promise.all(cacheNames.map(cacheName => caches.delete(cacheName)));
-        } catch (e) {
-          console.warn('Failed to clear caches:', e);
-        }
-      }
-      
-      // Clear any remaining event listeners
-      if (isMetaMaskInstalled && (window as any).ethereum?.removeAllListeners) {
-        try {
-          // Remove all event listeners to prevent reconnection
-          (window as any).ethereum.removeAllListeners();
-          // Also try to reset the provider
-          if (typeof (window as any).ethereum._handleDisconnect === 'function') {
-            (window as any).ethereum._handleDisconnect();
-          }
-        } catch (err) {
-          console.warn('Error cleaning up ethereum provider:', err);
-        }
-      }
-      
-      // Force a hard reset of the application state
-      setTimeout(() => {
-        // Clear any remaining data and reload
-        window.localStorage.clear();
-        window.sessionStorage.clear();
-        window.location.href = window.location.origin + window.location.pathname;
-      }, 100);
-      
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error('Failed to disconnect');
-      setError(error);
-      console.error('Disconnect error:', error);
+    } catch (error) {
+      console.error('Error disconnecting wallet:', error);
+      setError(error as Error);
       throw error;
     }
-  }, [isMetaMaskInstalled]);
-
-  // Check if wallet is connected
-  const isConnected = !!account?.isConnected;
-
-  const value: WalletContextType = {
-    account: account,
-    isConnected,
+  }, [unifiedDisconnect, wagmiDisconnect, setError, setAccount]);
+  
+  // Provide the context value
+  const contextValue: WalletContextType = {
+    account,
+    isConnected: !!account?.isConnected,
     connect,
-    disconnect: disconnect as () => Promise<void>,
+    disconnect,
     isConnecting,
-    error,
+    error
   };
-
+  
   return (
-    <WalletContext.Provider value={value}>
+    <WalletContext.Provider value={contextValue}>
       {children}
     </WalletContext.Provider>
   );
@@ -270,7 +176,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 export function useWallet(): WalletContextType {
   const context = useContext(WalletContext);
   if (context === undefined) {
-    throw new Error("useWallet must be used within a WalletProvider");
+    throw new Error('useWallet must be used within a WalletProvider');
   }
   return context;
 }

@@ -1,4 +1,17 @@
 import { Metadata } from 'next';
+import { Viewport } from 'next';
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+    { media: '(prefers-color-scheme: dark)', color: '#000000' },
+  ],
+  colorScheme: 'light dark',
+  viewportFit: 'cover',
+}
 
 export const siteConfig: Metadata = {
   title: {
@@ -55,11 +68,7 @@ export const siteConfig: Metadata = {
       'max-snippet': -1,
     },
   },
-  viewport: {
-    width: 'device-width',
-    initialScale: 1,
-    maximumScale: 1,
-  },
+  viewport: viewport,
   icons: {
     icon: '/favicon.ico',
     shortcut: '/favicon-16x16.png',

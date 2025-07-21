@@ -13,15 +13,15 @@ const queryClient = new QueryClient();
 export function Providers({ children }: { children: ReactNode }) {
   return (
     <ThirdwebProvider>
-      <WalletProvider>
-        <WagmiProvider config={config}>
-          <QueryClientProvider client={queryClient}>
+      <WagmiProvider config={config}>
+        <QueryClientProvider client={queryClient}>
+          <WalletProvider>
             <ThemeProvider>
               {children}
             </ThemeProvider>
-          </QueryClientProvider>
-        </WagmiProvider>
-      </WalletProvider>
+          </WalletProvider>
+        </QueryClientProvider>
+      </WagmiProvider>
     </ThirdwebProvider>
   );
 }

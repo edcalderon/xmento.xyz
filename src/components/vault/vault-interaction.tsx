@@ -4,38 +4,22 @@ import { useState, useEffect, useCallback } from 'react';
 import React from 'react';
 import { useAccount, useReadContract, useWriteContract, usePublicClient, useDisconnect } from 'wagmi';
 import { useWallet } from '@/contexts/WalletContext';
-import { mainnet, celoAlfajores } from 'viem/chains';
 import { isAddress } from 'viem';
 import { XmentoVaultFactoryABI } from './XmentoVaultFactoryABI';
 import { useToast } from '@/components/ui/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { VaultView } from './VaultView';
 import { AdminView } from './AdminView';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle } from 'lucide-react';
-
-// Token configuration
-export const TOKENS = {
-  cUSD: { name: 'Celo Dollar', symbol: 'cUSD', decimals: 18 },
-  cEUR: { name: 'Celo Euro', symbol: 'cEUR', decimals: 18 },
-  cREAL: { name: 'Celo Real', symbol: 'cREAL', decimals: 18 },
-} as const;
-
-export type TokenSymbol = keyof typeof TOKENS;
-
-// Contract addresses by network
-const CONTRACT_ADDRESSES = {
-  [mainnet.id]: {
-    factory: '0xYourMainnetFactoryAddress' as `0x${string}`,
-  },
-  [celoAlfajores.id]: {
-    factory: process.env.NEXT_PUBLIC_FACTORY_ADDRESS as `0x${string}` || '0x36eA57D1D52cd475aD6d842a18EDa975Eb88A31E',
-  },
-} as const;
-
-// Default to Alfajores if not specified
-const DEFAULT_CHAIN = celoAlfajores.id;
+import { AlertCircle, Wallet } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { 
+  TokenSymbol, 
+  CONTRACT_ADDRESSES, 
+  DEFAULT_CHAIN, 
+  VaultInteractionProps 
+} from '@/config/contracts';
 
 type BrowserWindow = Window & typeof globalThis & {
   ethereum?: any;
@@ -45,27 +29,22 @@ type BrowserWindow = Window & typeof globalThis & {
   };
 };
 
+
 declare const window: BrowserWindow | undefined;
 
-interface VaultInteractionProps {
-  factoryAddress?: `0x${string}`;
-}
-
 export function VaultInteraction({ factoryAddress }: VaultInteractionProps): JSX.Element {
+  const [selectedToken, setSelectedToken] = useState<TokenSymbol>('cUSD');
+  const [vaultAddress, setVaultAddress] = useState<`0x${string}` | null>(null);
+  const [isWrongNetwork, setIsWrongNetwork] = useState<boolean>(false);
+  const [isManager, setIsManager] = useState<boolean>(false);
+  const [userVaults, setUserVaults] = useState<`0x${string}`[]>([]);
   const { address, isConnected, chain } = useAccount();
   const chainId = chain?.id || DEFAULT_CHAIN;
   const { toast } = useToast();
   const publicClient = usePublicClient();
   
-  // State
-  const [selectedToken, setSelectedToken] = useState<TokenSymbol>('cUSD');
-  const [vaultAddress, setVaultAddress] = useState<`0x${string}` | null>(null);
-  const [isWrongNetwork, setIsWrongNetwork] = useState<boolean>(false);
-  const [isManager, setIsManager] = useState<boolean>(false);
-  
-  // Get contract addresses for current network
   const currentNetworkAddresses = {
-    ...(CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES] || CONTRACT_ADDRESSES[celoAlfajores.id]),
+    ...(CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES] || CONTRACT_ADDRESSES[DEFAULT_CHAIN]),
     // Override factory address if provided via props
     ...(factoryAddress ? { factory: factoryAddress } : {}),
   };
@@ -73,12 +52,10 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): JSX
   const VAULT_FACTORY_ADDRESS = currentNetworkAddresses.factory;
   const isSupportedNetwork = chainId in CONTRACT_ADDRESSES;
 
-  // Check if current user is the manager
   useEffect(() => {
     setIsManager(address?.toLowerCase() === process.env.NEXT_PUBLIC_MANAGER_ADDRESS?.toLowerCase());
   }, [address]);
 
-  // Update network status when chain changes
   useEffect(() => {
     if (chain) {
       const isWrong = !(chain.id in CONTRACT_ADDRESSES);
@@ -94,20 +71,13 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): JSX
     }
   }, [chain, toast]);
 
-  // Type guard for Ethereum addresses
   const isValidEthAddress = useCallback((value: unknown): value is `0x${string}` => {
     return typeof value === 'string' && isAddress(value);
   }, []);
-
-  // Filter and validate an array of potential addresses
   const filterValidAddresses = useCallback((addresses: unknown[]): `0x${string}`[] => {
     return addresses.filter(isValidEthAddress);
   }, [isValidEthAddress]);
 
-  // State for multiple vaults
-  const [userVaults, setUserVaults] = useState<`0x${string}`[]>([]);
-
-  // Clear all vault data for the current chain and address
   const clearVaultData = useCallback((currentAddress: string) => {
     if (typeof window === 'undefined') return;
     
@@ -119,19 +89,15 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): JSX
     }
   }, [chainId]);
 
-  // Get the wallet context for disconnect
   const { disconnect: disconnectWallet } = useWallet();
   const { disconnect: disconnectWagmi } = useDisconnect();
 
-  // Handle disconnect - cleans up all vault-related data
   const handleDisconnect = useCallback(async () => {
     try {
-      // Clear vault data from state
       setUserVaults([]);
       setVaultAddress(null);
       setIsManager(false);
       
-      // Clear vault data from localStorage for all networks
       if (typeof window !== 'undefined' && window?.localStorage) {
         // Get all keys that start with vault_ or vaults_
         const keysToRemove = [];
@@ -168,57 +134,43 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): JSX
     }
   }, [setUserVaults, setVaultAddress, setIsManager, disconnectWallet, disconnectWagmi]);
 
-  // Set up disconnect handler
   useEffect(() => {
-
-    // Listen for account change events
     const handleAccountsChanged = (accounts: string[]) => {
       if (accounts.length === 0) {
-        // User disconnected
         handleDisconnect();
       }
     };
 
-    // Set up event listeners
     if (typeof window !== 'undefined' && window.ethereum) {
       window.ethereum.on('accountsChanged', handleAccountsChanged);
     }
 
     return () => {
-      // Clean up event listeners
       if (typeof window !== 'undefined' && window.ethereum) {
         window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
       }
     };
   }, []);
 
-  // Clear vault data when address changes (including when disconnecting)
   useEffect(() => {
-    // Clear data when address changes (including when it becomes null/undefined)
     if (address) {
-      // Store the current address in a variable to use in the cleanup
       const currentAddress = address;
       return () => {
-        // This cleanup function runs when the address changes or component unmounts
         clearVaultData(currentAddress);
       };
     }
     
-    // If address is null/undefined (disconnected), clear data immediately
     if (address === null || address === undefined) {
-      // Clear all vaults from state
       setUserVaults([]);
       setVaultAddress(null);
       
-      // Try to get the last known address from the state
-      const lastAddress = userVaults[0]?.split('_')[2]; // Extract address from storage key
+      const lastAddress = userVaults[0]?.split('_')[2];
       if (lastAddress) {
         clearVaultData(lastAddress);
       }
     }
   }, [address, clearVaultData, userVaults]);
 
-  // Check for deployed vaults when address or chain changes
   const { data: userVaultAddress } = useReadContract({
     address: currentNetworkAddresses.factory,
     abi: XmentoVaultFactoryABI,
@@ -230,10 +182,8 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): JSX
     },
   });
 
-  // Load vaults from storage
   useEffect(() => {
     const loadVaults = () => {
-      // Clear vaults if not connected or on unsupported network
       if (!address || !isConnected || !isSupportedNetwork) {
         setUserVaults([]);
         setVaultAddress(null);
@@ -462,7 +412,6 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): JSX
         loadingToast.dismiss();
       }
       
-      // Extract meaningful error message
       let errorMessage = 'Failed to create vault. Please try again.';
       if (error instanceof Error) {
         if (error.message.includes('User rejected the request')) {
@@ -538,149 +487,74 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): JSX
   );
 
   // Render different states based on connection and vault status
-  const renderContent = () => {
-    if (!isConnected) {
-      return (
-        <div className="text-center py-12">
-          <h2 className="text-xl font-semibold mb-4">Connect your wallet to continue</h2>
-        </div>
-      );
-    }
-
-    if (isWrongNetwork) {
-      return (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Unsupported Network</AlertTitle>
-          <AlertDescription>
-            Please switch to a supported network to interact with the vault.
-          </AlertDescription>
-        </Alert>
-      );
-    }
-
-    if (userVaults.length === 0) {
-      return (
-        <div className="text-center py-12">
-          <h2 className="text-2xl font-semibold mb-6">Create Your First Vault</h2>
-          <p className="text-muted-foreground mb-6">Get started by creating a new vault to manage your assets</p>
-          <button 
-            onClick={handleCreateVault}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-lg font-medium"
-          >
-            Create New Vault
-          </button>
-        </div>
-      );
-    }
-
+  if (!isConnected) {
     return (
-      <>
-        <Tabs defaultValue="vault" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="vault">Vault</TabsTrigger>
-            {isManager && <TabsTrigger value="admin">Admin</TabsTrigger>}
-          </TabsList>
-          <TabsContent value="vault" className="mt-6">
-            <VaultView 
-              vaultAddress={vaultAddress}
-              isManager={isManager}
-              chainId={chainId}
-              selectedToken={selectedToken}
-              onTokenChange={handleTokenChange}
-              isWrongNetwork={isWrongNetwork}
-            />
-          </TabsContent>
-          {isManager && (
-            <TabsContent value="admin" className="mt-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Vault Statistics</CardTitle>
-                  <CardDescription>Overview of your vault's performance</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="p-4 border rounded-lg">
-                      <h3 className="text-sm font-medium text-muted-foreground">TVL</h3>
-                      <p className="text-2xl font-bold">-</p>
-                    </div>
-                    <div className="p-4 border rounded-lg">
-                      <h3 className="text-sm font-medium text-muted-foreground">APY</h3>
-                      <p className="text-2xl font-bold">-</p>
-                    </div>
-                    <div className="p-4 border rounded-lg">
-                      <h3 className="text-sm font-medium text-muted-foreground">Your Balance</h3>
-                      <p className="text-2xl font-bold">-</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          )}
-        </Tabs>
-      </>
+      <Card className="w-full max-w-md mx-auto">
+        <CardHeader>
+          <div className="flex items-center justify-center mb-4">
+            <div className="rounded-full bg-primary/10 p-3">
+              <Wallet className="h-8 w-8 text-primary" />
+            </div>
+          </div>
+          <CardTitle className="text-center text-2xl">Connect Your Wallet</CardTitle>
+          <CardDescription className="text-center">
+            Connect your wallet to create or manage your Xmento Vault
+          </CardDescription>
+        </CardHeader>
+      </Card>
     );
   }
 
   if (isWrongNetwork) {
     return (
-      <Alert variant="destructive">
+      <Alert variant="destructive" className="max-w-md mx-auto">
         <AlertCircle className="h-4 w-4" />
-        <AlertTitle>Unsupported Network</AlertTitle>
+        <AlertTitle>Wrong Network</AlertTitle>
         <AlertDescription>
-          Please switch to a supported network to interact with the vault.
+          Please switch to Celo Mainnet or Alfajores Testnet to use Xmento Vault.
         </AlertDescription>
       </Alert>
     );
   }
 
+  // Show create vault prompt if no vaults exist
   if (userVaults.length === 0) {
     return (
-      <div className="text-center py-12">
-        <h2 className="text-2xl font-semibold mb-6">Create Your First Vault</h2>
-        <p className="text-muted-foreground mb-6">Get started by creating a new vault to manage your assets</p>
-        <button 
-          onClick={handleCreateVault}
-          className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-lg font-medium"
-        >
-          Create New Vault
-        </button>
-      </div>
+      <Card className="w-full max-w-md mx-auto">
+        <CardHeader className="text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
+            <Wallet className="h-6 w-6 text-green-600" />
+          </div>
+          <CardTitle className="text-2xl">Create Your First Vault</CardTitle>
+          <CardDescription>
+            Get started by creating a new vault to manage your assets
+          </CardDescription>
+        </CardHeader>
+        <CardFooter>
+          <Button 
+            onClick={handleCreateVault}
+            className="w-full"
+            size="lg"
+          >
+            Create New Vault
+          </Button>
+        </CardFooter>
+      </Card>
     );
   }
 
+  // Show main vault interface
   return (
-    <div className="container mx-auto p-4 max-w-4xl">
-      {!isConnected ? (
-        <div className="text-center py-12">
-          <h2 className="text-xl font-semibold mb-4">Connect your wallet to continue</h2>
-        </div>
-      ) : isWrongNetwork ? (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Unsupported Network</AlertTitle>
-          <AlertDescription>
-            Please switch to a supported network to interact with the vault.
-          </AlertDescription>
-        </Alert>
-      ) : userVaults.length === 0 ? (
-        <div className="text-center py-12">
-          <h2 className="text-2xl font-semibold mb-6">Create Your First Vault</h2>
-          <p className="text-muted-foreground mb-6">Get started by creating a new vault to manage your assets</p>
-          <button 
-            onClick={handleCreateVault}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-lg font-medium"
-          >
-            Create New Vault
-          </button>
-        </div>
-      ) : (
-        <Tabs defaultValue="vault" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="vault">Vault</TabsTrigger>
-            {isManager && <TabsTrigger value="admin">Admin</TabsTrigger>}
-          </TabsList>
-          <TabsContent value="vault" className="mt-6">
+    <div className="space-y-6">
+      <Tabs defaultValue="vault" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="vault">Vault</TabsTrigger>
+          {isManager && <TabsTrigger value="admin">Admin</TabsTrigger>}
+        </TabsList>
+        
+        <TabsContent value="vault" className="space-y-6">
+          <VaultSelector />
+          {vaultAddress && (
             <VaultView 
               vaultAddress={vaultAddress}
               isManager={isManager}
@@ -689,35 +563,15 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): JSX
               onTokenChange={handleTokenChange}
               isWrongNetwork={isWrongNetwork}
             />
-          </TabsContent>
-          {isManager && (
-            <TabsContent value="admin" className="mt-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Vault Statistics</CardTitle>
-                  <CardDescription>Overview of your vault's performance</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="p-4 border rounded-lg">
-                      <h3 className="text-sm font-medium text-muted-foreground">TVL</h3>
-                      <p className="text-2xl font-bold">-</p>
-                    </div>
-                    <div className="p-4 border rounded-lg">
-                      <h3 className="text-sm font-medium text-muted-foreground">APY</h3>
-                      <p className="text-2xl font-bold">-</p>
-                    </div>
-                    <div className="p-4 border rounded-lg">
-                      <h3 className="text-sm font-medium text-muted-foreground">Your Balance</h3>
-                      <p className="text-2xl font-bold">-</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
           )}
-        </Tabs>
-      )}
+        </TabsContent>
+        
+        {isManager && (
+          <TabsContent value="admin" className="mt-6">
+            <AdminView vaultAddress={vaultAddress} chainId={chainId} />
+          </TabsContent>
+        )}
+      </Tabs>
     </div>
   );
 }

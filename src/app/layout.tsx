@@ -1,14 +1,15 @@
-import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Navbar } from "@/components/navbar";
 import { Providers } from "@/components/providers";
-import { Toaster } from "sonner";
+import { Toaster } from "@/components/ui/toaster";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
 
 import { siteConfig } from '@/config/site';
+import { viewport } from '@/config/site';
 
+export { viewport };
 export const metadata = siteConfig;
 
 export default function RootLayout({
@@ -22,7 +23,7 @@ export default function RootLayout({
         <Providers>
           <Navbar />
           {children}
-          <Toaster position="top-right" richColors closeButton />
+          <Toaster />
         </Providers>
       </body>
     </html>
