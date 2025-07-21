@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img src="https://xmento.xyz/logo.svg" width="200" alt="Xmento logo"/>
+  <img src="https://xmento.xyz/logo.png" width="200" alt="Xmento logo"/>
 </p>
 
 ---
