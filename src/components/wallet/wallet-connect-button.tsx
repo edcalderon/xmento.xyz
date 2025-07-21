@@ -363,7 +363,7 @@ export function WalletConnectButton({
                   </span>
                 </div>
                 <a
-                  href={`https://celo-${chain?.id === CHAIN_IDS.CELO_MAINNET ? '' : 'alfajores'}.blockscout.com/address/${account.address}`}
+                  href={`https://${chain?.id === CHAIN_IDS.CELO_MAINNET ? 'celo' : 'celo-alfajores'}.blockscout.com/address/${account.address}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-xs text-blue-500 hover:underline mt-1 flex items-center"
