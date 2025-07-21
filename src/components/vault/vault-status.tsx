@@ -140,7 +140,7 @@ export function VaultStatus({ address, exists = false }: VaultStatusProps) {
     const viewOnExplorer = (e: React.MouseEvent) => {
       e.stopPropagation();
       if (typeof window === 'undefined') return;
-      const explorerUrl = `https://celo-${chain?.id === CHAIN_IDS.CELO_MAINNET ? '' : 'alfajores'}.blockscout.com/address/${vaultAddress}`;
+      const explorerUrl = `https://${chain?.id === CHAIN_IDS.CELO_MAINNET ? 'celo' : 'celo-alfajores'}.blockscout.com/address/${vaultAddress}`;
       window.open(explorerUrl, '_blank', 'noopener,noreferrer');
     };
 
