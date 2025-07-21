@@ -50,7 +50,11 @@ type BrowserWindow = Window & typeof globalThis & {
 
 declare const window: BrowserWindow | undefined;
 
-export function VaultInteraction() {
+interface VaultInteractionProps {
+  factoryAddress?: `0x${string}`;
+}
+
+export function VaultInteraction({ factoryAddress }: VaultInteractionProps) {
   const { address, isConnected, chain } = useAccount();
   const chainId = chain?.id || DEFAULT_CHAIN;
   const { toast } = useToast();
@@ -63,8 +67,11 @@ export function VaultInteraction() {
   const [isManager, setIsManager] = useState<boolean>(false);
   
   // Get contract addresses for current network
-  const currentNetworkAddresses = CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES] ||
-    CONTRACT_ADDRESSES[celoAlfajores.id];
+  const currentNetworkAddresses = {
+    ...(CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES] || CONTRACT_ADDRESSES[celoAlfajores.id]),
+    // Override factory address if provided via props
+    ...(factoryAddress ? { factory: factoryAddress } : {}),
+  };
 
   const VAULT_FACTORY_ADDRESS = currentNetworkAddresses.factory;
   const isSupportedNetwork = chainId in CONTRACT_ADDRESSES;
@@ -192,17 +199,9 @@ export function VaultInteraction() {
 
   return (
     <div className="container mx-auto p-4 max-w-4xl">
-      <h1 className="text-3xl font-bold mb-6">Xmento Vault</h1>
-      
       {!isConnected ? (
         <div className="text-center py-12">
           <h2 className="text-xl font-semibold mb-4">Connect your wallet to continue</h2>
-          <button 
-            onClick={() => {}}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Connect Wallet
-          </button>
         </div>
       ) : isWrongNetwork ? (
         <Alert variant="destructive">
@@ -267,38 +266,6 @@ export function VaultInteraction() {
             <AdminView vaultAddress={vaultAddress} chainId={chainId} />
           </TabsContent>
         </Tabs>
-      )}
-      {!isManager && (
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-          <div>
-            <h1 className="text-3xl font-bold">Xmento Vault</h1>
-            {isConnected && (
-              <div className="flex flex-col gap-1 text-sm text-muted-foreground">
-                <div>{chain?.name || 'Unknown Network'}</div>
-                {vaultAddress && (
-                  <div className="flex items-center gap-2">
-                    <span>Vault: {`${vaultAddress.slice(0, 6)}...${vaultAddress.slice(-4)}`}</span>
-                    <span className={`px-2 py-0.5 text-xs rounded-full ${isManager ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                      {isManager ? 'Manager' : 'User'}
-                    </span>
-                    <a 
-                      href={`https://${chainId === celoAlfajores.id ? 'alfajores.celoscan.io/address/' : 'etherscan.io/address/'}${vaultAddress}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-500 hover:text-blue-700"
-                      title="View on explorer"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                      </svg>
-                    </a>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-          <WalletConnector />
-        </div>
       )}
     </div>
   );

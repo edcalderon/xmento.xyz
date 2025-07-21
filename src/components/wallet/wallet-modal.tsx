@@ -3,16 +3,17 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useWallet } from "@/contexts/WalletContext";
-import { AlertCircle, CheckCircle2, Loader2, Wallet2 } from "lucide-react";
+import { AlertCircle, Loader2, Wallet2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 interface WalletModalProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
+  onConnectSuccess?: () => void;
 }
 
-export function WalletModal({ isOpen, onOpenChange }: WalletModalProps) {
+export function WalletModal({ isOpen, onOpenChange, onConnectSuccess }: WalletModalProps) {
   const { connect, isConnecting, error } = useWallet();
   const [isInstallingMetaMask, setIsInstallingMetaMask] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -30,6 +31,9 @@ export function WalletModal({ isOpen, onOpenChange }: WalletModalProps) {
       await connect();
       onOpenChange(false);
       toast.success("Wallet connected successfully");
+      if (onConnectSuccess) {
+        onConnectSuccess();
+      }
     } catch (err) {
       console.error("Failed to connect wallet:", err);
       const errorMessage = err instanceof Error ? err.message : "Failed to connect to MetaMask";
@@ -95,7 +99,7 @@ export function WalletModal({ isOpen, onOpenChange }: WalletModalProps) {
               >
                 <div className="flex items-center gap-3">
                   <img 
-                    src="/metamask-logo.svg" 
+                    src="https://images.ctfassets.net/clixtyxoaeas/4rnpEzy1ATWRKVBOLxZ1Fm/a74dc1eed36d23d7ea6030383a4d5163/MetaMask-icon-fox.svg" 
                     alt="MetaMask" 
                     className="h-8 w-8"
                     onError={(e) => {

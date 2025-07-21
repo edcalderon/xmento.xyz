@@ -8,7 +8,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "xmento.xyz - fxStable on Celo",
+  title: "Xmento.xyz | StableFX on Celo",
   description: "Yield on your stablecoins with automated rebalancing",
 };
 

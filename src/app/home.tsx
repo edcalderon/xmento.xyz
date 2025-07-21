@@ -2,7 +2,6 @@
 
 import { VaultInteraction } from '@/components/vault/vault-interaction';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { VaultStatus } from "@/components/vault/vault-status";
 
 export default function Home() {
   const FACTORY_ADDRESS = process.env.NEXT_PUBLIC_FACTORY_ADDRESS as `0x${string}`;
@@ -20,15 +19,12 @@ export default function Home() {
               Earn yield on your stablecoins with automated rebalancing
             </p>
           </div>
-          <div className="w-full md:w-auto">
-            <VaultStatus address={FACTORY_ADDRESS} />
-          </div>
         </header>
 
         {/* Main Content */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            <VaultInteraction />
+            <VaultInteraction factoryAddress={FACTORY_ADDRESS} />
           </div>
           
           <div className="space-y-6">

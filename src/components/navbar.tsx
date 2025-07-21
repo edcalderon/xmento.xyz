@@ -1,7 +1,7 @@
 "use client";
 
 import { ThemeSwitcher } from "@/components/theme-switcher";
-import { WalletConnector } from "@/components/vault/wallet-connector";
+import { ConnectWallet } from "@/components/wallet/connect-wallet";
 
 export function Navbar() {
   return (
@@ -17,7 +17,7 @@ export function Navbar() {
             {/* Navigation items can be added here */}
           </div>
           <nav className="flex items-center space-x-2">
-            <WalletConnector />
+            <ConnectWallet className="w-full md:w-auto" showNetworkSwitcher={true} />
             <ThemeSwitcher />
           </nav>
         </div>
