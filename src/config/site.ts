@@ -68,7 +68,6 @@ export const siteConfig: Metadata = {
       'max-snippet': -1,
     },
   },
-  viewport: viewport,
   icons: {
     icon: '/favicon.ico',
     shortcut: '/favicon-16x16.png',

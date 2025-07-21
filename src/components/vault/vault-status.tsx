@@ -3,9 +3,13 @@
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { WalletConnectButton } from "@/components/wallet/wallet-connect-button";
-import { Button } from "@/components/ui/button";
 import { Copy, ExternalLink } from "lucide-react";
-import { toast } from "sonner";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useToast } from "@/components/ui/use-toast";
+import { CONTRACT_ADDRESSES, DEFAULT_CHAIN } from "@/config/contracts";
+import { useAccount } from "wagmi";
+import { CHAIN_IDS } from '@/lib/wagmi.config';
+
 
 // TypeScript declarations for browser globals
 type BrowserWindow = Window & typeof globalThis & {
@@ -20,19 +24,31 @@ declare const window: BrowserWindow | undefined;
 
 interface VaultStatusProps {
   address: string | undefined;
+  exists?: boolean; // When true, skips the existence check
 }
 
-export function VaultStatus({ address }: VaultStatusProps) {
+
+export function VaultStatus({ address, exists = false }: VaultStatusProps) {
   const [vaultAddress, setVaultAddress] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
+  const { chain } = useAccount();
+  const chainId = chain?.id || DEFAULT_CHAIN;
 
-  // Check for deployed vault using factory contract
+  // Skip existence check if we already know the vault exists
   useEffect(() => {
     const checkDeployedVault = async () => {
       setIsLoading(true);
-      
+
       if (!address) {
         setVaultAddress(null);
+        setIsLoading(false);
+        return;
+      }
+
+      // If we know the vault exists, just use the address
+      if (exists) {
+        setVaultAddress(address);
         setIsLoading(false);
         return;
       }
@@ -57,7 +73,7 @@ export function VaultStatus({ address }: VaultStatusProps) {
           'function getVaultAddress(address) view returns (address)',
           'function createVault() returns (address)'
         ] as const;
-        
+
         // Get the provider from the window.ethereum object (browser only)
         if (typeof window === 'undefined' || !window?.ethereum) {
           console.warn('Ethereum provider not found');
@@ -67,11 +83,11 @@ export function VaultStatus({ address }: VaultStatusProps) {
 
         const provider = new ethers.BrowserProvider(window.ethereum);
         const signer = await provider.getSigner();
-        
+
         // Factory contract address - using the one from memory
-        const factoryAddress = '0xYourVaultFactoryAddress' as `0x${string}`;
+        const factoryAddress = CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES].factory as `0x${string}`;
         const factory = new ethers.Contract(factoryAddress, factoryABI, signer);
-        
+
         // Check if user already has a vault
         const vaultAddress = await factory.getVaultAddress(address);
         if (vaultAddress && vaultAddress !== ethers.ZeroAddress) {
@@ -103,80 +119,91 @@ export function VaultStatus({ address }: VaultStatusProps) {
   // If loading, show a skeleton
   if (isLoading) {
     return (
-      <div className="h-10 w-32 bg-muted rounded-md animate-pulse" />
+      <div className="h-12 w-full bg-muted/50 rounded-lg animate-pulse" />
     );
   }
 
   // If user has a vault, show the vault info
   if (vaultAddress) {
-    const formattedAddress = `${vaultAddress.slice(0, 6)}...${vaultAddress.slice(-4)}`;
-    
-    const copyToClipboard = () => {
-      navigator.clipboard.writeText(vaultAddress);
-      toast.success('Vault address copied to clipboard');
+    // TypeScript now knows vaultAddress is a string here
+    const address = vaultAddress; // Create a new variable to help with type narrowing
+
+    const copyToClipboard = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      navigator.clipboard.writeText(address);
+      toast({ 
+        title: 'Copied',
+        description: 'Vault address copied to clipboard',
+      });
     };
-    
-    const viewOnExplorer = () => {
+
+    const viewOnExplorer = (e: React.MouseEvent) => {
+      e.stopPropagation();
       if (typeof window === 'undefined') return;
-      const explorerUrl = `https://explorer.celo.org/alfajores/address/${vaultAddress}`;
-      window.open(explorerUrl, '_blank');
+      const explorerUrl = `https://celo-${chain?.id === CHAIN_IDS.CELO_MAINNET ? '' : 'alfajores'}.blockscout.com/address/${vaultAddress}`;
+      window.open(explorerUrl, '_blank', 'noopener,noreferrer');
     };
-    
+
+    const handleVaultClick = () => {
+      // Handle vault selection if needed
+      // This can be extended with additional click handlers
+    };
+
     return (
-      <div className="flex flex-col items-end gap-2">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span>Your Vault:</span>
-          <div className="flex items-center gap-1 px-2 py-1 bg-muted rounded-md">
-            <span className="font-mono">{formattedAddress}</span>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-6 w-6 text-muted-foreground hover:text-foreground"
-              onClick={copyToClipboard}
-            >
-              <Copy className="h-3.5 w-3.5" />
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-6 w-6 text-muted-foreground hover:text-foreground"
-              onClick={viewOnExplorer}
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-            </Button>
-          </div>
+      <div
+        onClick={handleVaultClick}
+        className={`flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer`}
+      >
+        <div className="flex items-center">
+          <div className="w-3 h-3 rounded-full bg-blue-500 mr-3"></div>
+          <span className="font-mono">{`${address.slice(0, 6)}...${address.slice(-4)}`}</span>
         </div>
-        <div className="text-sm text-muted-foreground">Your Xmento Vault</div>
-        <div className="font-mono text-sm">
-          {`${vaultAddress.slice(0, 6)}...${vaultAddress.slice(-4)}`}
+        <div className="flex items-center gap-1">
+          <span className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 px-2 py-1 rounded-full">
+            Active
+          </span>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  className="p-1 text-muted-foreground hover:text-foreground rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                  onClick={copyToClipboard}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Copy address</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  className="p-1 text-muted-foreground hover:text-foreground rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                  onClick={viewOnExplorer}
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>View on Celo Explorer</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
       </div>
     );
   }
 
-  const handleDeployVault = async () => {
-    try {
-      // TODO: Implement actual vault deployment logic
-      // This is a placeholder - you'll need to implement the actual deployment
-      const mockVaultAddress = `0x${'0'.repeat(40)}`; // Replace with actual deployment
-      
-      // Save to local storage for demo purposes
-      localStorage.setItem(`vault_${address}`, mockVaultAddress);
-      setVaultAddress(mockVaultAddress);
-      
-      console.log('Vault deployed at:', mockVaultAddress);
-    } catch (error) {
-      console.error('Failed to deploy vault:', error);
-    }
-  };
-
+  // User is connected but has no vault
   return (
-    <Button 
-      variant="outline" 
-      onClick={handleDeployVault}
-      className="whitespace-nowrap"
-    >
-      Deploy Xmento Vault
-    </Button>
+    <div className="flex flex-col items-center justify-center p-6 rounded-lg border border-dashed border-gray-200 dark:border-gray-700 text-center">
+      <div className="text-sm text-muted-foreground mb-4">
+        No vault found for your wallet address
+      </div>
+      <div className="text-xs text-muted-foreground">
+        Create a new vault to get started
+      </div>
+    </div>
   );
 }

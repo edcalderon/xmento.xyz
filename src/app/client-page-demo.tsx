@@ -2,12 +2,8 @@
 
 import { Suspense } from 'react';
 import dynamic from 'next/dynamic';
+import { WalletConnectButton } from '@/components/wallet/wallet-connect-button';
 
-// Dynamically import all components with SSR disabled
-const Wallet = dynamic(
-  () => import('@/components/ui/wallet').then((mod) => mod.Wallet),
-  { ssr: false, loading: () => <div>Loading wallet...</div> }
-);
 
 const Address = dynamic(
   () => import('@/components/ui/address').then((mod) => mod.Address),
@@ -68,7 +64,7 @@ export default function ClientPage() {
               Wallet Connection
             </h2>
             <Suspense fallback={<div>Loading wallet...</div>}>
-              <Wallet />
+              <WalletConnectButton />
             </Suspense>
           </div>
 

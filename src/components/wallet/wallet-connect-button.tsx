@@ -9,6 +9,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { CHAIN_IDS } from "@/lib/wagmi.config";
 import { useAccount, useSwitchChain, useChainId, useConnect } from 'wagmi';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // Network types and configuration
 type NetworkID = 42220 | 44787; // Celo Mainnet and Alfajores Testnet IDs
@@ -53,7 +54,7 @@ export function WalletConnectButton({
   const { switchChain } = useSwitchChain();
   const currentChainId = useChainId();
   const { connect } = useConnect();
-  
+
   // State management
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
@@ -68,13 +69,13 @@ export function WalletConnectButton({
   // Handle network switching
   const handleSwitchNetwork = async (targetChainId: NetworkID) => {
     if (!isConnected || !switchChain) return;
-    
+
     setIsSwitching(true);
     try {
       if (!SUPPORTED_CHAINS.includes(targetChainId)) {
         throw new Error('Unsupported network');
       }
-      
+
       await switchChain({ chainId: targetChainId });
       toast({
         title: 'Network switched',
@@ -104,7 +105,10 @@ export function WalletConnectButton({
         try {
           setIsDisconnecting(true);
           await disconnect();
-          // The toast will be shown after the page reloads
+          toast({
+            title: 'Disconnected',
+            description: 'You have been disconnected from your wallet',
+          });
         } catch (error) {
           console.error('Disconnect error:', error);
           toast({
@@ -144,10 +148,10 @@ export function WalletConnectButton({
   // Handle adding a new account or switching accounts in MetaMask
   const handleAddAccount = useCallback(async () => {
     if (!connector || isSwitchingAccount) return;
-    
+
     try {
       setIsSwitchingAccount(true);
-      
+
       if (connector.id === 'injected' && typeof window.ethereum?.request === 'function') {
         // This will open the account management in MetaMask
         await (window.ethereum as any).request({
@@ -156,24 +160,24 @@ export function WalletConnectButton({
             eth_accounts: {}
           }]
         });
-        
+
         // Wait a moment for any account changes to propagate
         await new Promise(resolve => setTimeout(resolve, 1000));
-        
+
         // Force a refresh of the connected accounts
         if (window.ethereum?.isMetaMask) {
           await window.ethereum.request({ method: 'eth_requestAccounts' });
         }
-        
+
         // Close the dropdown
         setIsAccountDropdownOpen(false);
-        
+
         // Instead of reloading, we'll let the account change event handle the update
         toast({
           title: 'Accounts updated',
           description: 'Please select an account from the list above.',
         });
-        
+
       } else {
         // For non-MetaMask wallets, show instructions
         toast({
@@ -192,10 +196,10 @@ export function WalletConnectButton({
   // Handle account switching
   const handleSwitchAccount = async (targetAddress: string) => {
     if (!connector) return;
-    
+
     try {
       setIsSwitchingAccount(true);
-      
+
       // Check if the target account is already connected
       if (account?.address?.toLowerCase() === targetAddress.toLowerCase()) {
         toast({
@@ -204,7 +208,7 @@ export function WalletConnectButton({
         });
         return;
       }
-      
+
       // Try to switch account using the connector's method if available
       if (typeof (connector as any).switchAccount === 'function') {
         await (connector as any).switchAccount(targetAddress);
@@ -219,13 +223,13 @@ export function WalletConnectButton({
       } else {
         // Fallback: disconnect and reconnect with the same chain
         await connector.disconnect();
-        await connector.connect({ 
+        await connector.connect({
           chainId: chain?.id,
           // Some wallets support passing the account directly
           ...(connector.id === 'injected' && { account: targetAddress as `0x${string}` })
         });
       }
-      
+
       toast({
         title: 'Account changed',
         description: `Switched to ${targetAddress.slice(0, 6)}...${targetAddress.slice(-4)}`,
@@ -257,10 +261,10 @@ export function WalletConnectButton({
           <Wallet2 className="h-4 w-4" />
           Connect Wallet
         </Button>
-        
-        <WalletModal 
-          isOpen={isModalOpen} 
-          onOpenChange={setIsModalOpen} 
+
+        <WalletModal
+          isOpen={isModalOpen}
+          onOpenChange={setIsModalOpen}
           onConnectSuccess={() => setIsModalOpen(false)}
         />
       </>
@@ -280,9 +284,8 @@ export function WalletConnectButton({
               className="flex items-center gap-1.5"
               disabled={isSwitching}
             >
-              <div className={`h-2 w-2 rounded-full ${
-                isSupportedChain ? 'bg-green-500' : 'bg-yellow-500'
-              }`} />
+              <div className={`h-2 w-2 rounded-full ${isSupportedChain ? 'bg-green-500' : 'bg-yellow-500'
+                }`} />
               <span className="hidden sm:inline">
                 {NETWORK_INFO[chain?.id as NetworkID]?.name || 'Unsupported Network'}
               </span>
@@ -303,12 +306,12 @@ export function WalletConnectButton({
           </DropdownMenuContent>
         </DropdownMenu>
       )}
-      
+
       {/* Account Switcher */}
       {account?.address && (
         <DropdownMenu open={isAccountDropdownOpen} onOpenChange={setIsAccountDropdownOpen}>
           <DropdownMenuTrigger asChild>
-            <Button 
+            <Button
               variant="outline"
               size="sm"
               className="flex items-center gap-1.5"
@@ -322,21 +325,60 @@ export function WalletConnectButton({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-64">
-            <div className="px-2 py-1.5 text-sm font-semibold">Connected Accounts</div>
-            <DropdownMenuItem disabled className="opacity-100">
+            <div className="px-2 py-1.5 text-sm font-semibold">Connected Wallet</div>
+            <DropdownMenuItem
+              className="opacity-100 hover:bg-accent cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                copyToClipboard(account.address);
+              }}
+            >
               <div className="flex flex-col w-full">
                 <div className="flex items-center justify-between w-full">
-                  <span className="font-medium">Current Account</span>
-                  <Check className="h-4 w-4 text-green-500" />
+                  <div className="flex items-center">
+                    <span className="font-medium">Current Account</span>
+                    <Check className="h-4 w-4 text-green-500 ml-1" />
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            className="p-1 text-muted-foreground hover:text-foreground rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                            onClick={() => copyToClipboard(account.address)}
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Copy address</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </span>
                 </div>
-                <div className="text-sm text-muted-foreground truncate font-mono">
-                  {`${account.address.slice(0, 8)}...${account.address.slice(-6)}`}
+                <div className="flex items-center justify-between mt-1">
+                  <span className="text-sm text-muted-foreground truncate font-mono">
+                    {`${account.address.slice(0, 8)}...${account.address.slice(-6)}`}
+                  </span>
                 </div>
+                <a
+                  href={`https://celo-${chain?.id === CHAIN_IDS.CELO_MAINNET ? '' : 'alfajores'}.blockscout.com/address/${account.address}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-blue-500 hover:underline mt-1 flex items-center"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <span>View on Explorer</span>
+                  <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </a>
               </div>
             </DropdownMenuItem>
             <div className="px-2 py-1.5 mt-1">
               <div className="text-xs text-muted-foreground mb-2">
-                {otherAccounts.length > 0 
+                {otherAccounts.length > 0
                   ? 'Switch to another account:'
                   : 'No other accounts found in your wallet.'}
               </div>
@@ -364,47 +406,35 @@ export function WalletConnectButton({
                     handleAddAccount();
                   }}
                   disabled={isSwitchingAccount || connector?.id !== 'injected'}
-                  className={`w-full flex items-center text-sm h-8 px-2 rounded-md hover:bg-accent ${
-                    isSwitchingAccount || connector?.id !== 'injected' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-                  }`}
+                  className={`w-full flex items-center text-sm h-8 px-2 rounded-md hover:bg-accent ${isSwitchingAccount || connector?.id !== 'injected' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                    }`}
                 >
                   <Plus className="mr-2 h-4 w-4" />
                   Add New Account
                 </button>
               </div>
-              
+
               <div className="text-xs text-muted-foreground mt-2 mb-1">
                 {otherAccounts.length === 0 && 'Or add accounts manually:'}
               </div>
               <div className="text-xs text-muted-foreground whitespace-pre-line">
-                {connector?.id === 'injected' 
-                  ? '1. Open your wallet extension\n2. Create or import another account\n3. Click refresh below' 
+                {connector?.id === 'injected'
+                  ? '1. Open your wallet extension\n2. Create or import another account\n3. Click refresh below'
                   : 'Add accounts in your wallet and refresh this page'}
               </div>
             </div>
           </DropdownMenuContent>
         </DropdownMenu>
       )}
-      
-      {/* Copy Address Button */}
-      <Button
-        variant="outline"
-        size="icon"
-        onClick={() => account?.address && copyToClipboard(account.address)}
-        title="Copy address"
-        className="h-9 w-9"
-      >
-        {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-      </Button>
-      
+
       {/* Disconnect Button */}
       <Button
         variant="outline"
         size={size}
         onClick={handleConnect}
-        disabled={isConnecting || isSwitching}
+        disabled={isDisconnecting || isConnecting || isSwitching}
       >
-        Disconnect
+        {isDisconnecting ? 'Disconnecting...' : 'Disconnect'}
       </Button>
     </div>
   );

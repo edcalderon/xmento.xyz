@@ -14,11 +14,13 @@ import { Card, CardDescription, CardHeader, CardTitle, CardFooter } from '@/comp
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { 
-  TokenSymbol, 
-  CONTRACT_ADDRESSES, 
-  DEFAULT_CHAIN, 
-  VaultInteractionProps 
+import { VaultStatus } from './vault-status';
+
+import {
+  TokenSymbol,
+  CONTRACT_ADDRESSES,
+  DEFAULT_CHAIN,
+  VaultInteractionProps
 } from '@/config/contracts';
 
 type BrowserWindow = Window & typeof globalThis & {
@@ -42,7 +44,7 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): JSX
   const chainId = chain?.id || DEFAULT_CHAIN;
   const { toast } = useToast();
   const publicClient = usePublicClient();
-  
+
   const currentNetworkAddresses = {
     ...(CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES] || CONTRACT_ADDRESSES[DEFAULT_CHAIN]),
     // Override factory address if provided via props
@@ -80,7 +82,7 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): JSX
 
   const clearVaultData = useCallback((currentAddress: string) => {
     if (typeof window === 'undefined') return;
-    
+
     try {
       const storageKey = `vaults_${chainId}_${currentAddress.toLowerCase()}`;
       window.localStorage.removeItem(storageKey);
@@ -97,7 +99,7 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): JSX
       setUserVaults([]);
       setVaultAddress(null);
       setIsManager(false);
-      
+
       if (typeof window !== 'undefined' && window?.localStorage) {
         // Get all keys that start with vault_ or vaults_
         const keysToRemove = [];
@@ -107,24 +109,24 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): JSX
             keysToRemove.push(key);
           }
         }
-        
+
         // Remove all the keys we found
         keysToRemove.forEach(key => localStorage.removeItem(key));
       }
-      
+
       // Disconnect from both wallet contexts
       await Promise.allSettled([
         disconnectWallet().catch(console.error),
         disconnectWagmi()
       ]);
-      
+
       // Force a page refresh to ensure clean state
       if (typeof window !== 'undefined') {
         setTimeout(() => {
           window.location.reload();
         }, 100);
       }
-      
+
     } catch (error) {
       console.error('Error during disconnect:', error);
       // Even if there's an error, try to force a refresh to ensure clean state
@@ -159,11 +161,11 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): JSX
         clearVaultData(currentAddress);
       };
     }
-    
+
     if (address === null || address === undefined) {
       setUserVaults([]);
       setVaultAddress(null);
-      
+
       const lastAddress = userVaults[0]?.split('_')[2];
       if (lastAddress) {
         clearVaultData(lastAddress);
@@ -196,28 +198,28 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): JSX
         try {
           const savedVaults = win?.localStorage.getItem(storageKey);
           let vaults: `0x${string}`[] = [];
-          
+
           try {
             // Parse and validate saved vaults
             const parsedVaults = savedVaults ? JSON.parse(savedVaults) : [];
             vaults = Array.isArray(parsedVaults) ? filterValidAddresses(parsedVaults) : [];
-            
+
             // Validate and add the current vault from the chain if it exists and is valid
-            if (isValidEthAddress(userVaultAddress) && 
-                userVaultAddress !== '0x0000000000000000000000000000000000000000' && 
-                !vaults.includes(userVaultAddress)) {
+            if (isValidEthAddress(userVaultAddress) &&
+              userVaultAddress !== '0x0000000000000000000000000000000000000000' &&
+              !vaults.includes(userVaultAddress)) {
               const updatedVaults = [...vaults, userVaultAddress];
               win?.localStorage.setItem(storageKey, JSON.stringify(updatedVaults));
               vaults = updatedVaults;
-              
+
               if (!vaultAddress) {
                 setVaultAddress(userVaultAddress);
               }
             }
-            
+
             // Update state with validated vaults
             setUserVaults(vaults);
-            
+
             // Set the first valid vault if none is selected
             if (vaults.length > 0 && !vaultAddress) {
               setVaultAddress(vaults[0]);
@@ -253,17 +255,17 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): JSX
       console.error('Invalid vault address or user not connected');
       return;
     }
-    
+
     const validVaultAddress = vaultAddress as `0x${string}`;
-    
+
     setUserVaults(prevVaults => {
       // Check if vault already exists
       if (prevVaults.includes(validVaultAddress)) {
         return prevVaults;
       }
-      
+
       const newVaults = [...prevVaults, validVaultAddress];
-      
+
       // Save to local storage
       if (typeof window !== 'undefined') {
         const win = window as BrowserWindow;
@@ -274,10 +276,10 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): JSX
           console.error('Failed to save vault to localStorage:', error);
         }
       }
-      
+
       return newVaults;
     });
-    
+
     setVaultAddress(validVaultAddress);
   };
 
@@ -300,24 +302,24 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): JSX
       });
       return;
     }
-    
+
     // Show loading toast with loading state
     const loadingToast = toast({
       title: 'Creating Vault',
       description: 'Please wait while we create your vault...',
       variant: 'default',
     });
-    
+
     const showExplorerLink = (hash: string, type: 'tx' | 'address') => {
       if (typeof window === 'undefined') return;
       const explorerUrl = chain?.blockExplorers?.default?.url || 'https://explorer.celo.org';
       window.open(`${explorerUrl}/${type}/${hash}`, '_blank', 'noopener,noreferrer');
     };
-    
+
     try {
       // Track transaction state
       let transactionHash: string | null = null;
-      
+
       // Execute the vault creation transaction
       const result = await new Promise<`0x${string}`>((resolve, reject) => {
         writeContract({
@@ -331,13 +333,13 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): JSX
             transactionHash = hash;
             // Dismiss the loading toast
             loadingToast.dismiss();
-            
+
             // Show a new toast for the transaction without action
             toast({
               title: 'Transaction Sent',
               description: 'Waiting for confirmation...',
             });
-            
+
             // Show explorer link in a new tab
             showExplorerLink(hash, 'tx');
             resolve(hash);
@@ -348,50 +350,50 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): JSX
           }
         });
       });
-      
+
       // Wait for transaction receipt with timeout
       const receipt = await Promise.race([
-        publicClient.waitForTransactionReceipt({ 
+        publicClient.waitForTransactionReceipt({
           hash: result,
           confirmations: 1,
           timeout: 120_000 // 2 minute timeout
         }),
-        new Promise<never>((_, reject) => 
+        new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('Transaction timeout. Please check the blockchain explorer for updates.')), 120_000)
         )
       ]);
-      
+
       // Check if transaction was successful
       if (receipt.status === 'reverted') {
         throw new Error('Transaction reverted. Please try again.');
       }
-      
+
       // Find the VaultCreated event
       const vaultCreatedEvent = receipt.logs.find(
         (log) => log.topics[0] === '0xb8b2c1a2c2310fce50d68d9a9c3999094974e5892513643ce5d0bd72058f0305' // keccak256('VaultCreated(address,address)')
       );
-      
+
       if (!vaultCreatedEvent?.topics?.[2]) {
         throw new Error('Vault creation event not found in transaction receipt');
       }
-      
+
       const topic = vaultCreatedEvent.topics[2];
       const newVaultAddress = `0x${topic.slice(-40)}` as `0x${string}`;
-      
+
       // Add the new vault to the user's vaults
       addVault(newVaultAddress);
-      
+
       // Dismiss loading toast
       if ('dismiss' in loadingToast) {
         loadingToast.dismiss();
       }
-      
+
       // Show success toast with vault details
       toast({
         title: '🎉 Vault Created!',
         description: `Your new vault has been created at ${newVaultAddress.slice(0, 6)}...${newVaultAddress.slice(-4)}`,
         action: (
-          <button 
+          <button
             onClick={() => showExplorerLink(newVaultAddress, 'address')}
             className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
           >
@@ -400,18 +402,18 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): JSX
         ),
         duration: 10000, // Show for 10 seconds
       });
-      
+
       // Auto-select the new vault
       setVaultAddress(newVaultAddress);
-      
+
     } catch (error: unknown) {
       console.error('Vault creation error:', error);
-      
+
       // Dismiss loading toast on error
       if ('dismiss' in loadingToast) {
         loadingToast.dismiss();
       }
-      
+
       let errorMessage = 'Failed to create vault. Please try again.';
       if (error instanceof Error) {
         if (error.message.includes('User rejected the request')) {
@@ -422,7 +424,7 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): JSX
           errorMessage = error.message;
         }
       }
-      
+
       // Show error toast
       toast({
         title: 'Error Creating Vault',
@@ -430,7 +432,7 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): JSX
         variant: 'destructive',
         duration: 10000, // Show for 10 seconds
       });
-      
+
       // Log full error for debugging
       if (process.env.NODE_ENV === 'development') {
         console.error('Full error details:', error);
@@ -460,29 +462,28 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): JSX
           + Create New Vault
         </button>
       </div>
-      <div className="grid grid-cols-1 gap-2">
-        {userVaults.map((vault) => (
-          <button
-            key={vault}
-            onClick={() => handleVaultSelect(vault)}
-            className={`flex items-center justify-between p-3 rounded-lg border ${
-              vaultAddress === vault
-                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
-            }`}
-          >
-            <div className="flex items-center">
-              <div className="w-3 h-3 rounded-full bg-blue-500 mr-3"></div>
-              <span className="font-mono">{formatVaultAddress(vault)}</span>
+      
+      {userVaults.length > 0 ? (
+        <div className="space-y-2">
+          {userVaults.map((vault) => (
+            <div 
+              key={vault}
+              onClick={() => handleVaultSelect(vault)}
+              className={`transition-all duration-200 ${
+                vaultAddress === vault 
+                  ? 'ring-2 ring-blue-500 rounded-lg' 
+                  : 'hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-lg'
+              }`}
+            >
+              <VaultStatus address={vault} exists={true} />
             </div>
-            {vaultAddress === vault && (
-              <span className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 px-2 py-1 rounded-full">
-                Active
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <div className="p-4 text-center text-muted-foreground border border-dashed rounded-lg">
+          No vaults found. Create your first vault to get started.
+        </div>
+      )}
     </div>
   );
 
@@ -531,7 +532,7 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): JSX
           </CardDescription>
         </CardHeader>
         <CardFooter>
-          <Button 
+          <Button
             onClick={handleCreateVault}
             className="w-full"
             size="lg"
@@ -551,11 +552,11 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): JSX
           <TabsTrigger value="vault">Vault</TabsTrigger>
           {isManager && <TabsTrigger value="admin">Admin</TabsTrigger>}
         </TabsList>
-        
+
         <TabsContent value="vault" className="space-y-6">
           <VaultSelector />
           {vaultAddress && (
-            <VaultView 
+            <VaultView
               vaultAddress={vaultAddress}
               isManager={isManager}
               chainId={chainId}
@@ -565,7 +566,7 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): JSX
             />
           )}
         </TabsContent>
-        
+
         {isManager && (
           <TabsContent value="admin" className="mt-6">
             <AdminView vaultAddress={vaultAddress} chainId={chainId} />
