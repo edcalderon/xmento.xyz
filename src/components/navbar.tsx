@@ -2,6 +2,7 @@
 
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { WalletConnectButton } from "@/components/wallet/wallet-connect-button";
+import { version } from "../../package.json";
 
 export function Navbar() {
   return (
@@ -9,7 +10,10 @@ export function Navbar() {
       <div className="container flex h-14 max-w-screen-2xl items-center">
         <div className="mr-4 flex">
           <a className="mr-6 flex items-center space-x-2" href="/">
-            <span className="font-bold text-xl">Mento FX</span>
+            <div className="flex items-baseline space-x-2">
+              <span className="font-bold text-xl">Mento FX</span>
+              <span className="text-xs text-muted-foreground font-mono">v{version}</span>
+            </div>
           </a>
         </div>
         <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
