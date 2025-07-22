@@ -2,11 +2,12 @@
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { useWallet } from "@/contexts/WalletContext";
-import { AlertCircle, Loader2, Wallet2, Smartphone, Monitor } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Loader2, Wallet2, Smartphone, Monitor, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
-
+import { useRouter } from "next/navigation";
+import { useWallet } from "@/contexts/WalletContext";
+import { isMobile } from "react-device-detect";
 
 interface WalletModalProps {
   isOpen: boolean;
@@ -20,6 +21,11 @@ export function WalletModal({ isOpen, onOpenChange, onConnectSuccess }: WalletMo
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
+  // Check if MetaMask is installed
+  const isMetaMaskInstalled = typeof window !== 'undefined' && 
+    typeof (window as any).ethereum !== 'undefined' && 
+    (window as any).ethereum.isMetaMask;
+
   useEffect(() => {
     if (!isOpen) {
       // Reset state when modal is closed
@@ -27,21 +33,21 @@ export function WalletModal({ isOpen, onOpenChange, onConnectSuccess }: WalletMo
     }
   }, [isOpen]);
 
-  const handleMetaMaskConnect = async (event: React.MouseEvent<HTMLButtonElement>, useMobile: boolean = false) => {
+  const handleMetaMaskConnect = async (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     setIsConnecting(true);
     setConnectionError(null);
     
     try {
-      // For mobile, open the MetaMask app directly
-      if (useMobile) {
-        const dappUrl = window.location.hostname;
+      // For mobile without MetaMask, open the app directly
+      if (isMobile && !isMetaMaskInstalled) {
+        const dappUrl = window.location.href;
         const metamaskAppDeepLink = `https://metamask.app.link/dapp/${dappUrl}`;
         window.open(metamaskAppDeepLink, '_blank');
-        return; // Early return for mobile
+        return;
       }
       
-      // For web connection
+      // For web or mobile with MetaMask
       await connect();
       
       // Close the modal and show success
@@ -49,13 +55,11 @@ export function WalletModal({ isOpen, onOpenChange, onConnectSuccess }: WalletMo
       toast.success("Wallet connected successfully");
       if (onConnectSuccess) {
         onConnectSuccess();
-      }  
-      setIsConnecting(false);
+      }
     } catch (err) {
       console.error("Failed to connect wallet:", err);
       const errorMessage = err instanceof Error ? err.message : "Failed to connect to MetaMask";
       setConnectionError(errorMessage);
-      setIsConnecting(false);
       toast.error(errorMessage);
     } finally {
       setIsConnecting(false);
@@ -69,22 +73,8 @@ export function WalletModal({ isOpen, onOpenChange, onConnectSuccess }: WalletMo
     setTimeout(() => setIsInstallingMetaMask(false), 3000);
   };
 
-  const isMetaMaskInstalled = typeof window !== 'undefined' && 
-    typeof (window as any).ethereum !== 'undefined' && 
-    (window as any).ethereum.isMetaMask;
-    
-  // Check if we're on mobile and not in a WebView
-  const isMobileDevice = (() => {
-    if (typeof window === 'undefined') return false;
-    
-    // Check for mobile device
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
-    // Check if we're in a WebView (like in-app browsers)
-    const isWebView = /(WebView|(iPhone|iPod|iPad).*AppleWebKit(?!.*Safari)|Android.*(wv|.0.0.0))/i.test(navigator.userAgent);
-    
-    return isMobile && !isWebView;
-  })();
+  // Check if we should show the mobile option (mobile browser without MetaMask)
+  const showMobileOption = isMobile && !isMetaMaskInstalled;
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
