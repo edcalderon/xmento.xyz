@@ -47,10 +47,17 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, [isConnected, address, chain]);
   
+  // Check if we're on mobile
+  const isMobile = typeof window !== 'undefined' && 
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
   // Check if MetaMask is installed
   const isMetaMaskInstalled = typeof window !== 'undefined' && 
     typeof (window as any).ethereum !== 'undefined' && 
     (window as any).ethereum.isMetaMask;
+    
+  // Check if we should use MetaMask Mobile
+  const shouldUseMobile = isMobile && !isMetaMaskInstalled;
   
   // Generate a session ID for tracking disconnections
   const [sessionId] = useState(() => {
@@ -102,16 +109,36 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, [sessionId]);
   
   // Connect wallet function
-  const connect = useCallback(async () => {
-    if (!isMetaMaskInstalled) {
-      throw new Error('MetaMask is not installed');
-    }
-    
+  const connect = useCallback(async (useMobile: boolean = false) => {
     setIsConnecting(true);
     setError(null);
     
     try {
-      // Use wagmi's connect function
+      // Handle mobile MetaMask connection
+      if (useMobile || shouldUseMobile) {
+        const dappUrl = window.location.href.split('?')[0];
+        const metamaskAppDeepLink = `https://metamask.app.link/dapp/${dappUrl.replace(/^https?:\/\//, '')}`;
+        
+        // Try to open MetaMask mobile app
+        window.location.href = metamaskAppDeepLink;
+        
+        // Set a timeout to detect if the app didn't open
+        setTimeout(() => {
+          if (document.visibilityState === 'visible') {
+            // If we're still here, the app didn't open - redirect to MetaMask download
+            window.open('https://metamask.io/download.html', '_blank');
+          }
+        }, 1000);
+        
+        return;
+      }
+      
+      // Handle web MetaMask connection
+      if (!isMetaMaskInstalled) {
+        throw new Error('MetaMask is not installed');
+      }
+      
+      // Use wagmi's connect function for web
       const connector = connectors.find(c => c.id === 'metaMask');
       if (!connector) {
         throw new Error('MetaMask connector not found');
@@ -125,7 +152,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsConnecting(false);
     }
-  }, [isMetaMaskInstalled, connectAsync, connectors]);
+  }, [isMetaMaskInstalled, shouldUseMobile, connectAsync, connectors]);
   
   // Disconnect wallet function
   const disconnect = useCallback(async (): Promise<void> => {

@@ -3,9 +3,10 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useWallet } from "@/contexts/WalletContext";
-import { AlertCircle, Loader2, Wallet2 } from "lucide-react";
+import { AlertCircle, Loader2, Wallet2, Smartphone, Monitor } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+
 
 interface WalletModalProps {
   isOpen: boolean;
@@ -14,8 +15,9 @@ interface WalletModalProps {
 }
 
 export function WalletModal({ isOpen, onOpenChange, onConnectSuccess }: WalletModalProps) {
-  const { connect, isConnecting, error } = useWallet();
+  const { connect, isConnecting: walletIsConnecting, error } = useWallet();
   const [isInstallingMetaMask, setIsInstallingMetaMask] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -25,20 +27,38 @@ export function WalletModal({ isOpen, onOpenChange, onConnectSuccess }: WalletMo
     }
   }, [isOpen]);
 
-  const handleMetaMaskConnect = async () => {
+  const handleMetaMaskConnect = async (event: React.MouseEvent<HTMLButtonElement>, useMobile: boolean = false) => {
+    event.preventDefault();
+    setIsConnecting(true);
+    setConnectionError(null);
+    
     try {
-      setConnectionError(null);
+      // For mobile, open the MetaMask app directly
+      if (useMobile) {
+        const dappUrl = window.location.hostname;
+        const metamaskAppDeepLink = `https://metamask.app.link/dapp/${dappUrl}`;
+        window.open(metamaskAppDeepLink, '_blank');
+        return; // Early return for mobile
+      }
+      
+      // For web connection
       await connect();
+      
+      // Close the modal and show success
       onOpenChange(false);
       toast.success("Wallet connected successfully");
       if (onConnectSuccess) {
         onConnectSuccess();
-      }
+      }  
+      setIsConnecting(false);
     } catch (err) {
       console.error("Failed to connect wallet:", err);
       const errorMessage = err instanceof Error ? err.message : "Failed to connect to MetaMask";
       setConnectionError(errorMessage);
+      setIsConnecting(false);
       toast.error(errorMessage);
+    } finally {
+      setIsConnecting(false);
     }
   };
 
@@ -52,6 +72,19 @@ export function WalletModal({ isOpen, onOpenChange, onConnectSuccess }: WalletMo
   const isMetaMaskInstalled = typeof window !== 'undefined' && 
     typeof (window as any).ethereum !== 'undefined' && 
     (window as any).ethereum.isMetaMask;
+    
+  // Check if we're on mobile and not in a WebView
+  const isMobileDevice = (() => {
+    if (typeof window === 'undefined') return false;
+    
+    // Check for mobile device
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    // Check if we're in a WebView (like in-app browsers)
+    const isWebView = /(WebView|(iPhone|iPod|iPad).*AppleWebKit(?!.*Safari)|Android.*(wv|.0.0.0))/i.test(navigator.userAgent);
+    
+    return isMobile && !isWebView;
+  })();
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -90,30 +123,53 @@ export function WalletModal({ isOpen, onOpenChange, onConnectSuccess }: WalletMo
             </div>
           ) : (
             <>
-              <Button
-                variant="outline"
-                size="lg"
-                className="w-full justify-between px-6 py-6 h-auto"
-                onClick={handleMetaMaskConnect}
-                disabled={isConnecting}
-              >
-                <div className="flex items-center gap-3">
-                  <img 
-                    src="https://images.ctfassets.net/clixtyxoaeas/4rnpEzy1ATWRKVBOLxZ1Fm/a74dc1eed36d23d7ea6030383a4d5163/MetaMask-icon-fox.svg" 
-                    alt="MetaMask" 
-                    className="h-8 w-8"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTIwLjc1IDNIMy4yNUMxLjkxIDMgLjc1IDQuMTUuNzUgNS41VjE4LjVDLjc1IDE5Ljg1IDEuOTEgMjEgMy4yNSAyMUgyMGMxLjM4IDAgMi41LTEuMTIgMi41LTIuNVY1LjVDMjIuNSA0LjEyIDIxLjM4IDMgMjAgM1pNMTkuNSA3LjVIMTdWNS41QzE3IDQuOTUgMTcuNDUgNC41IDE4IDQuNUgxOUMxOS41NSA0LjUgMjAgNC45NSAyMCA1LjVWNy41SDIwLjVWMTEuNUgxNi43NUw2LjIgNi43NUw3LjI1IDQuMjVMMTkuNSAxMS4yNVY3LjVaTTE5LjUgMTYuNUgxNlYxOC41QzE2IDE5LjA1IDE1LjU1IDE5LjUgMTUgMTkuNUgxNEMxMy40NSAxOS41IDEzIDE5LjA1IDEzIDE4LjVWMTYuNUg0LjVWNy41SDdsLTMtM0g0VNS41QzQgNC42NyA0LjY3IDQgNS41IDRIMTguNUMxOS4zMyA0IDIwIDQuNjcgMjAgNS41VjE2LjVDMjAgMTcuMzMgMTkuMzMgMTggMTguNSAxOEgxN1YxNi41SDE5LjVaTTUuNSAxNS41SDEzVjE4SDUuNVYxNS41Wk0xNiAxMy41SDE5LjVWMTFIMTZWNi41SMTNWOUMxMyAxMC4xMyAxMy44OCAxMS4xMiAxNSAxMS4zN0wxNiAxMy41WiIgZmlsbD0iIEMxQzFDMCIvPgo8L3N2Zz4=';
-                    }}
-                  />
-                  <span>MetaMask</span>
-                </div>
-                {isConnecting ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <span className="text-xs opacity-50">Popular</span>
+              <div className="space-y-3">
+                {/* Web Browser Option */}
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="w-full justify-between px-6 py-6 h-auto"
+                  onClick={(e) => handleMetaMaskConnect(e, false)}
+                  disabled={isConnecting}
+                >
+                  <div className="flex items-center gap-3">
+                    <img 
+                      src="https://images.ctfassets.net/clixtyxoaeas/4rnpEzy1ATWRKVBOLxZ1Fm/a74dc1eed36d23d7ea6030383a4d5163/MetaMask-icon-fox.svg" 
+                      alt="MetaMask" 
+                      className="h-8 w-8"
+                    />
+                    <div className="text-left">
+                      <div className="font-medium">MetaMask Browser</div>
+                      <div className="text-xs text-muted-foreground">Connect using MetaMask extension</div>
+                    </div>
+                  </div>
+                  <Monitor className="h-5 w-5 text-muted-foreground" />
+                </Button>
+
+                {/* Mobile App Option - Only show on mobile devices */}
+                {isMobileDevice && !isMetaMaskInstalled && (
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="w-full justify-between px-6 py-6 h-auto"
+                    onClick={(e) => handleMetaMaskConnect(e, true)}
+                    disabled={isConnecting}
+                  >
+                    <div className="flex items-center gap-3">
+                      <img 
+                        src="https://images.ctfassets.net/clixtyxoaeas/4rnpEzy1ATWRKVBOLxZ1Fm/a74dc1eed36d23d7ea6030383a4d5163/MetaMask-icon-fox.svg" 
+                        alt="MetaMask Mobile" 
+                        className="h-8 w-8"
+                      />
+                      <div className="text-left">
+                        <div className="font-medium">MetaMask Mobile</div>
+                        <div className="text-xs text-muted-foreground">Open in MetaMask app</div>
+                      </div>
+                    </div>
+                    <Smartphone className="h-5 w-5 text-muted-foreground" />
+                  </Button>
                 )}
-              </Button>
+              </div>
             </>
           )}
           

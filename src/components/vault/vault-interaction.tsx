@@ -154,24 +154,32 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): JSX
     };
   }, []);
 
+  // Use a ref to track the last address without causing re-renders
+  const lastAddressRef = React.useRef<string | null>(null);
+
+  // Update the ref when userVaults changes
+  React.useEffect(() => {
+    if (userVaults.length > 0) {
+      lastAddressRef.current = userVaults[0]?.split('_')[2] || null;
+    }
+  }, [userVaults]);
+
   useEffect(() => {
     if (address) {
       const currentAddress = address;
       return () => {
         clearVaultData(currentAddress);
       };
-    }
-
-    if (address === null || address === undefined) {
+    } else {
       setUserVaults([]);
       setVaultAddress(null);
 
-      const lastAddress = userVaults[0]?.split('_')[2];
-      if (lastAddress) {
-        clearVaultData(lastAddress);
+      // Use the ref instead of directly accessing userVaults
+      if (lastAddressRef.current) {
+        clearVaultData(lastAddressRef.current);
       }
     }
-  }, [address, clearVaultData, userVaults]);
+  }, [address, clearVaultData]); // Removed userVaults from dependencies
 
   const { data: userVaultAddress } = useReadContract({
     address: currentNetworkAddresses.factory,
