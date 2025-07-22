@@ -165,17 +165,25 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, [sessionId]);
   
   // Clean URL by ensuring it doesn't have duplicate protocols
-  const cleanUrl = (url: string): string => {
+  const cleanUrl = (url: string, keepProtocol: boolean = false): string => {
     if (!url) return '';
-    // Remove any existing protocol and leading slashes
-    return (
-      url
-        .replace(/^https?:\/\//, '')  // Remove http:// or https://
-        .replace(/^\/\//, '')         // Remove protocol-relative //
-        .replace(/^\/*/, '')           // Remove leading slashes
-        .split('?')[0]                 // Remove query parameters
-        .split('#')[0]                 // Remove fragments
-    );
+    
+    // If we need to keep the protocol, just clean up the rest
+    if (keepProtocol) {
+      // Ensure there's exactly one protocol
+      const clean = url.replace(/^(https?:\/\/)(.*)/, (_, protocol, rest) => {
+        return `${protocol}${rest.replace(/^\/+/, '')}`;
+      });
+      return clean;
+    }
+    
+    // For paths or hostnames, remove all protocols and clean up
+    return url
+      .replace(/^https?:\/\//, '')  // Remove http:// or https://
+      .replace(/^\/\//, '')         // Remove protocol-relative //
+      .replace(/^\/*/, '')           // Remove leading slashes
+      .split('?')[0]                 // Remove query parameters
+      .split('#')[0];                // Remove fragments
   };
 
   // Redirect to MetaMask mobile app with deep link
@@ -190,7 +198,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     const metamaskDeepLink = `https://metamask.app.link/dapp/${cleanHostname}`;
     
     // Store the current URL to redirect back after wallet connection
-    sessionStorage.setItem('postAuthRedirect', window.location.href);
+    // Ensure we have a clean URL with protocol for the redirect
+    const currentUrl = new URL(window.location.href);
+    const cleanRedirectUrl = cleanUrl(currentUrl.toString(), true);
+    sessionStorage.setItem('postAuthRedirect', cleanRedirectUrl);
     
     // Log the URL for debugging
     console.log('Opening MetaMask with URL:', metamaskDeepLink);
@@ -216,8 +227,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           const deepLink = `https://metamask.app.link/wc?uri=${encodeURIComponent(wcUri)}`;
           
           // Store the current URL to redirect back after wallet connection
-          const currentUrl = window.location.href;
-          sessionStorage.setItem('postAuthRedirect', cleanUrl(currentUrl));
+          // Ensure we have a clean URL with protocol for the redirect
+          const currentUrl = new URL(window.location.href);
+          const cleanRedirectUrl = cleanUrl(currentUrl.toString(), true);
+          sessionStorage.setItem('postAuthRedirect', cleanRedirectUrl);
           
           // Log the URL for debugging
           console.log('Opening WalletConnect with URL:', deepLink);
