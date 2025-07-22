@@ -217,7 +217,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           
           // Store the current URL to redirect back after wallet connection
           const currentUrl = window.location.href;
-          sessionStorage.setItem('postAuthRedirect', currentUrl);
+          sessionStorage.setItem('postAuthRedirect', cleanUrl(currentUrl));
           
           // Log the URL for debugging
           console.log('Opening WalletConnect with URL:', deepLink);
