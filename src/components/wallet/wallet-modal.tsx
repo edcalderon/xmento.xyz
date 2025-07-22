@@ -46,41 +46,53 @@ export function WalletModal({ isOpen, onOpenChange, onConnectSuccess }: WalletMo
 
     try {
       // Handle mobile connection
-      if (isMobileConnect) {
+      if (isMobileConnect || isMobile) {
         const dappUrl = getDappUrl();
         let deepLink = '';
         
-        if (isAndroid) {
-          deepLink = `https://metamask.app.link/wc?uri=wc:00e46b69-d0cc-4b3e-b6a2-27e47e1eb1af@1?bridge=https%3A%2F%2Fbridge.walletconnect.org&key=91303dedf64285cbbaf9120f6e9d160a5c8aa2deb250274feb16c1ea3e589fe7`;
-        } else if (isIOS) {
-          deepLink = `https://metamask.app.link/wc?uri=wc:00e46b69-d0cc-4b3e-b6a2-27e47e1eb1af@1?bridge=https%3A%2F%2Fbridge.walletconnect.org&key=91303dedf64285cbbaf9120f6e9d160a5c8aa2deb250274feb16c1ea3e589fe7`;
-        } else {
-          // Fallback to generic dapp link
-          deepLink = `https://metamask.app.link/dapp/${dappUrl}`;
+        // Use the MetaMask universal link for mobile
+        deepLink = `https://metamask.app.link/dapp/${dappUrl.replace(/^https?:\/\//, '')}`;
+        
+        // For WalletConnect, we need to use the connect flow directly
+        if (!isMetaMaskInstalled) {
+          // Open the deep link in a new tab on mobile
+          window.open(deepLink, '_blank');
+          
+          // Also try to connect using WalletConnect
+          await connect('walletConnect');
+          
+          // Close the modal and show success
+          onOpenChange(false);
+          toast.success("Please complete the connection in your wallet app");
+          return;
         }
         
-        // Store the current URL to redirect back after wallet connection
-        if (typeof window !== 'undefined') {
-          sessionStorage.setItem('postAuthRedirect', window.location.href);
+        // If MetaMask is installed on mobile, use the injected provider
+        if (isMobile && isMetaMaskInstalled) {
+          await connect('injected');
+          onOpenChange(false);
+          toast.success("Wallet connected successfully");
+          if (onConnectSuccess) onConnectSuccess();
+          return;
         }
         
-        // Open the deep link
+        // Fallback for other mobile cases
         window.location.href = deepLink;
-        
-        // Don't await the connection here - let the WalletConnect modal handle it
-        // The connection will be handled when the user returns to the app
         return;
       }
 
-      // For web or mobile with MetaMask installed
-      await connect();
+      // For desktop with MetaMask installed
+      if (isMetaMaskInstalled) {
+        await connect('injected');
+      } else {
+        // If MetaMask is not installed, use WalletConnect
+        await connect('walletConnect');
+      }
       
       // Close the modal and show success
       onOpenChange(false);
       toast.success("Wallet connected successfully");
-      if (onConnectSuccess) {
-        onConnectSuccess();
-      }
+      if (onConnectSuccess) onConnectSuccess();
     } catch (err) {
       console.error("Failed to connect wallet:", err);
       const errorMessage = err instanceof Error ? err.message : "Failed to connect to MetaMask";

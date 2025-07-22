@@ -184,6 +184,23 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     try {
       // Handle WalletConnect
       if (connectorType === 'walletConnect') {
+        // On mobile, open the WalletConnect modal in a new tab
+        if (isMobile) {
+          const dappUrl = window.location.hostname;
+          const deepLink = `https://metamask.app.link/wc?uri=` + 
+            encodeURIComponent(`wc:${Date.now()}-1@1?bridge=https%3A%2F%2Fbridge.walletconnect.org&key=91303dedf64285cbbaf9120f6e9d160a5c8aa2deb250274feb16c1ea3e589fe7`);
+          
+          // Store the current URL to redirect back after wallet connection
+          sessionStorage.setItem('postAuthRedirect', window.location.href);
+          
+          // Open the deep link in a new tab
+          window.open(deepLink, '_blank');
+          
+          // Don't wait for connection here - it will be handled by the WalletConnect modal
+          return;
+        }
+        
+        // For desktop, use the regular WalletConnect flow
         const result = await connectAsync({ connector: walletConnectConnector });
         if (result.accounts?.[0]) {
           localStorage.setItem('walletAddress', result.accounts[0]);
@@ -221,9 +238,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       }
       
       // Handle MetaMask
-      if (shouldRedirectToMetaMask) {
-        redirectToMetaMaskApp();
-        return;
+      if (isMobile && !isMetaMaskAvailable) {
+        // On mobile without MetaMask installed, use WalletConnect
+        return connect('walletConnect');
       }
       
       const injectedConnector = connectors.find(c => c.id === 'metaMask' || c.id === 'injected');
