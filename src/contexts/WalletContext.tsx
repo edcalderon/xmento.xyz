@@ -193,7 +193,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         // On mobile, open the WalletConnect modal in a new tab
         if (isMobile) {
           // Clean the hostname to avoid double protocols
-          const dappUrl = cleanUrl(window.location.hostname);
           const wcUri = `wc:${Date.now()}-1@1?bridge=https%3A%2F%2Fbridge.walletconnect.org&key=91303dedf64285cbbaf9120f6e9d160a5c8aa2deb250274feb16c1ea3e589fe7`;
           
           // Create the deep link with cleaned URL
