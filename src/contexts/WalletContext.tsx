@@ -1,20 +1,55 @@
 "use client";
 
 import { createContext, useContext, ReactNode, useCallback, useState, useEffect } from "react";
-import { useAccount, useDisconnect as useWagmiDisconnect, useConnect } from "wagmi";
-import { useDisconnect } from "@/hooks/useDisconnect";
+import { 
+  useAccount, 
+  useConnect, 
+  useDisconnect,
+} from 'wagmi';
+import { walletConnect } from 'wagmi/connectors';
+import { useDisconnect as useCustomDisconnect } from "@/hooks/useDisconnect";
+import { isMobile } from "react-device-detect";
 
+// Type for wallet account
 export interface WalletAccount {
   address: string;
-  chainId?: number;
+  connector: {
+    id: string;
+    name: string;
+    type: string;
+    [key: string]: any;
+  };
+  chainId?: number; // Make chainId optional
   isConnected: boolean;
-  connectorName?: string;
+  isConnecting?: boolean;
+  isReconnecting?: boolean;
+  isDisconnected?: boolean;
+  status?: 'connected' | 'disconnected' | 'connecting' | 'reconnecting';
+  connectorName?: string; // Add connectorName to the interface
 }
+
+// Type for the result of connectAsync
+type ConnectResult = {
+  accounts: readonly string[];
+  chainId: number;
+  connector: {
+    id: string;
+    name: string;
+    type: string;
+    [key: string]: any;
+  };
+  account: string;
+  chain: {
+    id: number;
+    unsupported?: boolean;
+  };
+  [key: string]: any; // Allow additional properties
+};
 
 export interface WalletContextType {
   account: WalletAccount | null;
   isConnected: boolean;
-  connect: () => Promise<void>;
+  connect: (connectorType?: 'injected' | 'walletConnect') => Promise<ConnectResult | void>;
   disconnect: () => Promise<void>;
   isConnecting: boolean;
   error: Error | null;
@@ -30,34 +65,49 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   // Get wagmi hooks
   const { address, isConnected, chain } = useAccount();
   const { connectAsync, connectors } = useConnect();
-  const { disconnect: wagmiDisconnect } = useWagmiDisconnect();
-  const { disconnect: unifiedDisconnect } = useDisconnect();
+  const { disconnect: wagmiDisconnect } = useDisconnect();
+  const { disconnect: unifiedDisconnect } = useCustomDisconnect();
   
   // Update account when wagmi state changes
   useEffect(() => {
     if (isConnected && address) {
       setAccount({
         address,
+        connector: {
+          id: 'metaMask',
+          name: 'MetaMask',
+          type: 'injected'
+        },
         chainId: chain?.id,
         isConnected: true,
-        connectorName: 'MetaMask' // Default to MetaMask for now
+        connectorName: 'MetaMask'
       });
     } else {
       setAccount(null);
     }
   }, [isConnected, address, chain]);
   
-  // Check if we're on mobile
-  const isMobile = typeof window !== 'undefined' && 
-    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
-  // Check if MetaMask is installed
-  const isMetaMaskInstalled = typeof window !== 'undefined' && 
+  // Check if MetaMask is installed and available
+  const isMetaMaskAvailable = typeof window !== 'undefined' && 
     typeof (window as any).ethereum !== 'undefined' && 
     (window as any).ethereum.isMetaMask;
     
-  // Check if we should use MetaMask Mobile
-  const shouldUseMobile = isMobile && !isMetaMaskInstalled;
+  // Check if we should redirect to MetaMask Mobile
+  const shouldRedirectToMetaMask = isMobile && !isMetaMaskAvailable;
+  
+  // WalletConnect connector configuration
+  const walletConnectConfig = {
+    projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'YOUR_WALLETCONNECT_PROJECT_ID',
+    metadata: {
+      name: 'Xmento',
+      description: 'Earn yield on your Mento stables',
+      url: 'https://xmento.xyz',
+      icons: ['https://xmento.xyz/icon.png'],
+    },
+  };
+  
+  // Create connectors
+  const walletConnectConnector = walletConnect(walletConnectConfig);
   
   // Generate a session ID for tracking disconnections
   const [sessionId] = useState(() => {
@@ -97,62 +147,128 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       // Check for stored wallet address
       const storedAddress = localStorage.getItem('walletAddress');
       if (storedAddress && !disconnectedSessionId) {
-        setAccount({
+        setAccount(prev => ({
+          ...prev || {},
           address: storedAddress,
           isConnected: false,
+          connector: {
+            id: 'injected',
+            name: 'MetaMask',
+            type: 'injected'
+          },
           connectorName: 'MetaMask'
-        });
+        }));
       }
     };
     
     initializeWallet();
   }, [sessionId]);
   
-  // Connect wallet function
-  const connect = useCallback(async (useMobile: boolean = false) => {
+  // Redirect to MetaMask mobile app with deep link
+  const redirectToMetaMaskApp = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    
+    const dappUrl = window.location.hostname;
+    const metamaskDeepLink = `https://metamask.app.link/dapp/${dappUrl}`;
+    
+    // Store the current URL to redirect back after wallet connection
+    sessionStorage.setItem('postAuthRedirect', window.location.href);
+    window.location.href = metamaskDeepLink;
+  }, []);
+
+  // Connect wallet function with simplified type signature
+  const connect = useCallback(async (connectorType: 'injected' | 'walletConnect' = 'injected'): Promise<ConnectResult | void> => {
     setIsConnecting(true);
     setError(null);
     
     try {
-      // Handle mobile MetaMask connection
-      if (useMobile || shouldUseMobile) {
-        const dappUrl = window.location.href.split('?')[0];
-        const metamaskAppDeepLink = `https://metamask.app.link/dapp/${dappUrl.replace(/^https?:\/\//, '')}`;
+      // Handle WalletConnect
+      if (connectorType === 'walletConnect') {
+        const result = await connectAsync({ connector: walletConnectConnector });
+        if (result.accounts?.[0]) {
+          localStorage.setItem('walletAddress', result.accounts[0]);
+          localStorage.removeItem('walletDisconnected');
+          setAccount({
+            address: result.accounts[0],
+            chainId: result.chainId,
+            isConnected: true,
+            connectorName: 'WalletConnect',
+            connector: {
+              id: 'walletConnect',
+              name: 'WalletConnect',
+              type: 'walletConnect'
+            }
+          });
+        }
+        // Convert accounts to the correct type ensuring they're valid Ethereum addresses
+        const accounts = (result.accounts ?? []) as readonly `0x${string}`[];
+        const account = accounts[0] ?? '0x' as `0x${string}`;
         
-        // Try to open MetaMask mobile app
-        window.location.href = metamaskAppDeepLink;
-        
-        // Set a timeout to detect if the app didn't open
-        setTimeout(() => {
-          if (document.visibilityState === 'visible') {
-            // If we're still here, the app didn't open - redirect to MetaMask download
-            window.open('https://metamask.io/download.html', '_blank');
+        return {
+          accounts,
+          chainId: result.chainId,
+          connector: {
+            id: 'walletconnect',
+            name: 'WalletConnect',
+            type: 'walletconnect'
+          } as const,
+          account,
+          chain: {
+            id: result.chainId,
+            unsupported: false
           }
-        }, 1000);
-        
+        };
+      }
+      
+      // Handle MetaMask
+      if (shouldRedirectToMetaMask) {
+        redirectToMetaMaskApp();
         return;
       }
       
-      // Handle web MetaMask connection
-      if (!isMetaMaskInstalled) {
-        throw new Error('MetaMask is not installed');
+      const injectedConnector = connectors.find(c => c.id === 'metaMask' || c.id === 'injected');
+      if (!injectedConnector) throw new Error('No suitable wallet connector found');
+      
+      const result = await connectAsync({ connector: injectedConnector });
+      if (result.accounts?.[0]) {
+        localStorage.setItem('walletAddress', result.accounts[0]);
+        localStorage.removeItem('walletDisconnected');
+        setAccount({
+          address: result.accounts[0],
+          chainId: result.chainId,
+          isConnected: true,
+          connector: {
+            id: injectedConnector.id,
+            name: injectedConnector.name,
+            type: injectedConnector.type || 'injected'  // Default to 'injected' if type is not available
+          },
+          connectorName: injectedConnector.name
+        });
       }
       
-      // Use wagmi's connect function for web
-      const connector = connectors.find(c => c.id === 'metaMask');
-      if (!connector) {
-        throw new Error('MetaMask connector not found');
-      }
-      
-      await connectAsync({ connector });
-    } catch (error) {
-      console.error('Error connecting wallet:', error);
-      setError(error as Error);
+      return {
+        accounts: result.accounts ?? [],
+        chainId: result.chainId,
+        connector: {
+          id: injectedConnector.id,
+          name: injectedConnector.name,
+          type: injectedConnector.type || 'injected'
+        },
+        account: result.accounts?.[0] ?? '0x',
+        chain: {
+          id: result.chainId,
+          unsupported: false
+        }
+      };
+    } catch (err) {
+      console.error('Failed to connect wallet:', err);
+      const error = err instanceof Error ? err : new Error('Failed to connect wallet');
+      setError(error);
       throw error;
     } finally {
       setIsConnecting(false);
     }
-  }, [isMetaMaskInstalled, shouldUseMobile, connectAsync, connectors]);
+  }, [connectAsync, connectors, shouldRedirectToMetaMask, redirectToMetaMaskApp, walletConnectConnector]);
   
   // Disconnect wallet function
   const disconnect = useCallback(async (): Promise<void> => {
