@@ -164,11 +164,17 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     initializeWallet();
   }, [sessionId]);
   
+  // Clean URL by ensuring it doesn't have duplicate protocols
+  const cleanUrl = (url: string): string => {
+    // Remove any existing protocol and leading slashes
+    return url.replace(/^(https?:\/\/)|^\/\//, '').replace(/^\/*/, '');
+  };
+
   // Redirect to MetaMask mobile app with deep link
   const redirectToMetaMaskApp = useCallback(() => {
     if (typeof window === 'undefined') return;
     
-    const dappUrl = window.location.hostname;
+    const dappUrl = cleanUrl(window.location.hostname);
     const metamaskDeepLink = `https://metamask.app.link/dapp/${dappUrl}`;
     
     // Store the current URL to redirect back after wallet connection
@@ -186,8 +192,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       if (connectorType === 'walletConnect') {
         // On mobile, open the WalletConnect modal in a new tab
         if (isMobile) {
-          const dappUrl = window.location.hostname;
+          // Clean the hostname to avoid double protocols
+          const dappUrl = cleanUrl(window.location.hostname);
           const wcUri = `wc:${Date.now()}-1@1?bridge=https%3A%2F%2Fbridge.walletconnect.org&key=91303dedf64285cbbaf9120f6e9d160a5c8aa2deb250274feb16c1ea3e589fe7`;
+          
+          // Create the deep link with cleaned URL
           const deepLink = `https://metamask.app.link/wc?uri=${encodeURIComponent(wcUri)}`;
           
           // Store the current URL to redirect back after wallet connection
@@ -198,7 +207,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           
           // Fallback to window.open if the above doesn't work
           setTimeout(() => {
-            window.open(deepLink, '_blank', 'noopener,noreferrer');
+            const fallbackLink = `https://metamask.app.link/wc?uri=${encodeURIComponent(wcUri)}`;
+            window.open(fallbackLink, '_blank', 'noopener,noreferrer');
           }, 500);
           
           // Don't wait for connection here - it will be handled by the WalletConnect modal
