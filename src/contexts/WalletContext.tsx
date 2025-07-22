@@ -187,14 +187,19 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         // On mobile, open the WalletConnect modal in a new tab
         if (isMobile) {
           const dappUrl = window.location.hostname;
-          const deepLink = `https://metamask.app.link/wc?uri=` + 
-            encodeURIComponent(`wc:${Date.now()}-1@1?bridge=https%3A%2F%2Fbridge.walletconnect.org&key=91303dedf64285cbbaf9120f6e9d160a5c8aa2deb250274feb16c1ea3e589fe7`);
+          const wcUri = `wc:${Date.now()}-1@1?bridge=https%3A%2F%2Fbridge.walletconnect.org&key=91303dedf64285cbbaf9120f6e9d160a5c8aa2deb250274feb16c1ea3e589fe7`;
+          const deepLink = `https://metamask.app.link/wc?uri=${encodeURIComponent(wcUri)}`;
           
           // Store the current URL to redirect back after wallet connection
           sessionStorage.setItem('postAuthRedirect', window.location.href);
           
-          // Open the deep link in a new tab
-          window.open(deepLink, '_blank');
+          // Try to open the deep link directly first
+          window.location.href = deepLink;
+          
+          // Fallback to window.open if the above doesn't work
+          setTimeout(() => {
+            window.open(deepLink, '_blank', 'noopener,noreferrer');
+          }, 500);
           
           // Don't wait for connection here - it will be handled by the WalletConnect modal
           return;
