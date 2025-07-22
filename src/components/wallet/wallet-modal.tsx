@@ -3,6 +3,11 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
+
+// Utility function to detect mobile devices
+const isMobileDevice = () => {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+};
 import { Loader2, Wallet2, Smartphone, Monitor, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -33,7 +38,7 @@ export function WalletModal({ isOpen, onOpenChange, onConnectSuccess }: WalletMo
     }
   }, [isOpen]);
 
-  const handleMetaMaskConnect = async (event: React.MouseEvent<HTMLButtonElement>) => {
+  const handleMetaMaskConnect = async (event: React.MouseEvent<HTMLButtonElement>, isMobileConnect: boolean = false) => {
     event.preventDefault();
     setIsConnecting(true);
     setConnectionError(null);
@@ -119,7 +124,7 @@ export function WalletModal({ isOpen, onOpenChange, onConnectSuccess }: WalletMo
                   variant="outline"
                   size="lg"
                   className="w-full justify-between px-6 py-6 h-auto"
-                  onClick={(e) => handleMetaMaskConnect(e, false)}
+                  onClick={handleMetaMaskConnect}
                   disabled={isConnecting}
                 >
                   <div className="flex items-center gap-3">
@@ -137,7 +142,7 @@ export function WalletModal({ isOpen, onOpenChange, onConnectSuccess }: WalletMo
                 </Button>
 
                 {/* Mobile App Option - Only show on mobile devices */}
-                {isMobileDevice && !isMetaMaskInstalled && (
+                {isMobileDevice() && !isMetaMaskInstalled && (
                   <Button
                     variant="outline"
                     size="lg"
