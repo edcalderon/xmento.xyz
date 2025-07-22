@@ -4,15 +4,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
 
-// Utility function to detect mobile devices
-const isMobileDevice = () => {
-  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-};
 import { Loader2, Wallet2, Smartphone, Monitor, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
 import { useWallet } from "@/contexts/WalletContext";
 import { isMobile } from "react-device-detect";
+
+// Use react-device-detect's isMobile for consistent mobile detection
+const isMobileDevice = () => isMobile;
 
 interface WalletModalProps {
   isOpen: boolean;
@@ -79,7 +77,7 @@ export function WalletModal({ isOpen, onOpenChange, onConnectSuccess }: WalletMo
   };
 
   // Check if we should show the mobile option (mobile browser without MetaMask)
-  const showMobileOption = isMobile && !isMetaMaskInstalled;
+  const showMobileOption = isMobileDevice() && !isMetaMaskInstalled;
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -92,7 +90,7 @@ export function WalletModal({ isOpen, onOpenChange, onConnectSuccess }: WalletMo
         </DialogHeader>
         
         <div className="grid gap-4 py-4">
-          {!isMetaMaskInstalled ? (
+          {(!isMetaMaskInstalled && !isMobile) ? (
             <div className="space-y-4">
               <div className="rounded-lg border p-4 text-center">
                 <Wallet2 className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
@@ -120,29 +118,30 @@ export function WalletModal({ isOpen, onOpenChange, onConnectSuccess }: WalletMo
             <>
               <div className="space-y-3">
                 {/* Web Browser Option */}
+                <div className="rounded-lg border p-4 text-center">
+                <Wallet2 className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
+                <h3 className="font-medium">MetaMask not detected</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  You'll need to install MetaMask to continue.
+                </p>
                 <Button
-                  variant="outline"
-                  size="lg"
-                  className="w-full justify-between px-6 py-6 h-auto"
-                  onClick={handleMetaMaskConnect}
-                  disabled={isConnecting}
+                  onClick={installMetaMask}
+                  disabled={isInstallingMetaMask}
+                  className="w-full"
                 >
-                  <div className="flex items-center gap-3">
-                    <img 
-                      src="https://images.ctfassets.net/clixtyxoaeas/4rnpEzy1ATWRKVBOLxZ1Fm/a74dc1eed36d23d7ea6030383a4d5163/MetaMask-icon-fox.svg" 
-                      alt="MetaMask" 
-                      className="h-8 w-8"
-                    />
-                    <div className="text-left">
-                      <div className="font-medium">MetaMask Browser</div>
-                      <div className="text-xs text-muted-foreground">Connect using MetaMask extension</div>
-                    </div>
-                  </div>
-                  <Monitor className="h-5 w-5 text-muted-foreground" />
+                  {isInstallingMetaMask ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Redirecting...
+                    </>
+                  ) : (
+                    'Install MetaMask'
+                  )}
                 </Button>
+              </div>
 
                 {/* Mobile App Option - Only show on mobile devices */}
-                {isMobileDevice() && !isMetaMaskInstalled && (
+                {showMobileOption && (
                   <Button
                     variant="outline"
                     size="lg"
