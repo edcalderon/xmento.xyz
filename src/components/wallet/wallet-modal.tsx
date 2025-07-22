@@ -4,13 +4,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
 
-import { Loader2, Wallet2, Smartphone, Monitor, AlertCircle } from "lucide-react";
+import { Loader2, Wallet2, Smartphone, ExternalLink, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useWallet } from "@/contexts/WalletContext";
-import { isMobile } from "react-device-detect";
+import { isMobile, isAndroid, isIOS } from "react-device-detect";
 
-// Use react-device-detect's isMobile for consistent mobile detection
-const isMobileDevice = () => isMobile;
+// Get the current host and protocol for deep linking
+const getDappUrl = () => {
+  if (typeof window === 'undefined') return '';
+  return encodeURIComponent(window.location.href);
+};
 
 interface WalletModalProps {
   isOpen: boolean;
@@ -42,17 +45,32 @@ export function WalletModal({ isOpen, onOpenChange, onConnectSuccess }: WalletMo
     setConnectionError(null);
 
     try {
-      // For mobile without MetaMask, open the app directly
-      if (isMobile && !isMetaMaskInstalled) {
-        const dappUrl = window.location.href;
-        const metamaskAppDeepLink = `https://metamask.app.link/dapp/${dappUrl}`;
-        window.open(metamaskAppDeepLink, '_blank');
+      // Handle mobile connection
+      if (isMobileConnect) {
+        const dappUrl = getDappUrl();
+        let deepLink = '';
+        
+        if (isAndroid) {
+          deepLink = `https://metamask.app.link/wc?uri=wc:00e46b69-d0cc-4b3e-b6a2-27e47e1eb1af@1?bridge=https%3A%2F%2Fbridge.walletconnect.org&key=91303dedf64285cbbaf9120f6e9d160a5c8aa2deb250274feb16c1ea3e589fe7`;
+        } else if (isIOS) {
+          deepLink = `https://metamask.app.link/wc?uri=wc:00e46b69-d0cc-4b3e-b6a2-27e47e1eb1af@1?bridge=https%3A%2F%2Fbridge.walletconnect.org&key=91303dedf64285cbbaf9120f6e9d160a5c8aa2deb250274feb16c1ea3e589fe7`;
+        } else {
+          // Fallback to generic dapp link
+          deepLink = `https://metamask.app.link/dapp/${dappUrl}`;
+        }
+        
+        // Open the deep link
+        window.open(deepLink, '_blank');
+        
+        // Also try to connect in case the user comes back to the dapp
+        await connect();
+        onOpenChange(false);
         return;
       }
 
-      // For web or mobile with MetaMask
+      // For web or mobile with MetaMask installed
       await connect();
-
+      
       // Close the modal and show success
       onOpenChange(false);
       toast.success("Wallet connected successfully");
@@ -76,8 +94,6 @@ export function WalletModal({ isOpen, onOpenChange, onConnectSuccess }: WalletMo
     setTimeout(() => setIsInstallingMetaMask(false), 3000);
   };
 
-  // Check if we should show the mobile option (mobile browser without MetaMask)
-  const showMobileOption = isMobileDevice() && !isMetaMaskInstalled;
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -90,40 +106,37 @@ export function WalletModal({ isOpen, onOpenChange, onConnectSuccess }: WalletMo
         </DialogHeader>
 
         <div className="grid gap-4 py-4">
-          {(!isMetaMaskInstalled && !isMobile) ? (
-            <div className="space-y-4">
-              <div className="rounded-lg border p-4 text-center">
-                <Wallet2 className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
-                <h3 className="font-medium">MetaMask not detected</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  You'll need to install MetaMask to continue.
-                </p>
-                <Button
-                  onClick={installMetaMask}
-                  disabled={isInstallingMetaMask}
-                  className="w-full"
-                >
-                  {isInstallingMetaMask ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Redirecting...
-                    </>
-                  ) : (
-                    'Install MetaMask'
-                  )}
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="space-y-3">
-                {/* Web Browser Option */}
-                <div className="rounded-lg border p-4 text-center">
-                  <Wallet2 className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
-                  <h3 className="font-medium">MetaMask not detected</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    You'll need to install MetaMask to continue.
-                  </p>
+          <div className="space-y-4">
+            {/* MetaMask Browser Extension Option */}
+            {!isMobile && (
+              <div className="rounded-lg border p-4">
+                <div className="flex items-center gap-3 mb-4">
+                  <img
+                    src="https://images.ctfassets.net/clixtyxoaeas/4rnpEzy1ATWRKVBOLxZ1Fm/a74dc1eed36d23d7ea6030383a4d5163/MetaMask-icon-fox.svg"
+                    alt="MetaMask"
+                    className="h-8 w-8"
+                  />
+                  <div className="text-left">
+                    <div className="font-medium">MetaMask Browser</div>
+                    <div className="text-xs text-muted-foreground">Connect using your MetaMask extension</div>
+                  </div>
+                </div>
+                {isMetaMaskInstalled ? (
+                  <Button
+                    onClick={handleMetaMaskConnect}
+                    disabled={isConnecting}
+                    className="w-full"
+                  >
+                    {isConnecting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Connecting...
+                      </>
+                    ) : (
+                      'Connect with MetaMask'
+                    )}
+                  </Button>
+                ) : (
                   <Button
                     onClick={installMetaMask}
                     disabled={isInstallingMetaMask}
@@ -138,34 +151,47 @@ export function WalletModal({ isOpen, onOpenChange, onConnectSuccess }: WalletMo
                       'Install MetaMask'
                     )}
                   </Button>
-                </div>
-
-                {/* Mobile App Option - Only show on mobile devices */}
-                {showMobileOption && (
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    className="w-full justify-between px-6 py-6 h-auto"
-                    onClick={(e) => handleMetaMaskConnect(e, true)}
-                    disabled={isConnecting}
-                  >
-                    <div className="flex items-center gap-3">
-                      <img
-                        src="https://images.ctfassets.net/clixtyxoaeas/4rnpEzy1ATWRKVBOLxZ1Fm/a74dc1eed36d23d7ea6030383a4d5163/MetaMask-icon-fox.svg"
-                        alt="MetaMask Mobile"
-                        className="h-8 w-8"
-                      />
-                      <div className="text-left">
-                        <div className="font-medium">MetaMask Mobile</div>
-                        <div className="text-xs text-muted-foreground">Open in MetaMask app</div>
-                      </div>
-                    </div>
-                    <Smartphone className="h-5 w-5 text-muted-foreground" />
-                  </Button>
                 )}
               </div>
-            </>
-          )}
+            )}
+
+            {/* Mobile App Option - Only show on mobile devices */}
+            {isMobile && (
+              <div className="rounded-lg border p-4">
+                <div className="flex items-center gap-3 mb-4">
+                  <img
+                    src="https://images.ctfassets.net/clixtyxoaeas/4rnpEzy1ATWRKVBOLxZ1Fm/a74dc1eed36d23d7ea6030383a4d5163/MetaMask-icon-fox.svg"
+                    alt="MetaMask Mobile"
+                    className="h-8 w-8"
+                  />
+                  <div className="text-left">
+                    <div className="font-medium">MetaMask Mobile</div>
+                    <div className="text-xs text-muted-foreground">
+                      {isMetaMaskInstalled ? 'Connect with MetaMask app' : 'Open in MetaMask app'}
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={(e) => handleMetaMaskConnect(e, true)}
+                  disabled={isConnecting}
+                >
+                  {isConnecting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      {isMetaMaskInstalled ? 'Connecting...' : 'Opening...'}
+                    </>
+                  ) : (
+                    <>
+                      {isMetaMaskInstalled ? 'Connect' : 'Open MetaMask'}
+                      <ExternalLink className="ml-2 h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+          </div>
 
           {connectionError && (
             <div className="rounded-md bg-red-50 p-4">
