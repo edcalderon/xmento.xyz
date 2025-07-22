@@ -59,12 +59,16 @@ export function WalletModal({ isOpen, onOpenChange, onConnectSuccess }: WalletMo
           deepLink = `https://metamask.app.link/dapp/${dappUrl}`;
         }
         
-        // Open the deep link
-        window.open(deepLink, '_blank');
+        // Store the current URL to redirect back after wallet connection
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('postAuthRedirect', window.location.href);
+        }
         
-        // Also try to connect in case the user comes back to the dapp
-        await connect();
-        onOpenChange(false);
+        // Open the deep link
+        window.location.href = deepLink;
+        
+        // Don't await the connection here - let the WalletConnect modal handle it
+        // The connection will be handled when the user returns to the app
         return;
       }
 
