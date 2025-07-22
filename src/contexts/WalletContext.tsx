@@ -166,19 +166,36 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   
   // Clean URL by ensuring it doesn't have duplicate protocols
   const cleanUrl = (url: string): string => {
+    if (!url) return '';
     // Remove any existing protocol and leading slashes
-    return url.replace(/^(https?:\/\/)|^\/\//, '').replace(/^\/*/, '');
+    return (
+      url
+        .replace(/^https?:\/\//, '')  // Remove http:// or https://
+        .replace(/^\/\//, '')         // Remove protocol-relative //
+        .replace(/^\/*/, '')           // Remove leading slashes
+        .split('?')[0]                 // Remove query parameters
+        .split('#')[0]                 // Remove fragments
+    );
   };
 
   // Redirect to MetaMask mobile app with deep link
   const redirectToMetaMaskApp = useCallback(() => {
     if (typeof window === 'undefined') return;
     
-    const dappUrl = cleanUrl(window.location.hostname);
-    const metamaskDeepLink = `https://metamask.app.link/dapp/${dappUrl}`;
+    // Get the current hostname and clean it
+    const hostname = window.location.hostname;
+    const cleanHostname = cleanUrl(hostname);
+    
+    // Create the deep link
+    const metamaskDeepLink = `https://metamask.app.link/dapp/${cleanHostname}`;
     
     // Store the current URL to redirect back after wallet connection
     sessionStorage.setItem('postAuthRedirect', window.location.href);
+    
+    // Log the URL for debugging
+    console.log('Opening MetaMask with URL:', metamaskDeepLink);
+    
+    // Try to open the link
     window.location.href = metamaskDeepLink;
   }, []);
 
@@ -199,7 +216,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           const deepLink = `https://metamask.app.link/wc?uri=${encodeURIComponent(wcUri)}`;
           
           // Store the current URL to redirect back after wallet connection
-          sessionStorage.setItem('postAuthRedirect', window.location.href);
+          const currentUrl = window.location.href;
+          sessionStorage.setItem('postAuthRedirect', currentUrl);
+          
+          // Log the URL for debugging
+          console.log('Opening WalletConnect with URL:', deepLink);
           
           // Try to open the deep link directly first
           window.location.href = deepLink;
@@ -207,6 +228,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           // Fallback to window.open if the above doesn't work
           setTimeout(() => {
             const fallbackLink = `https://metamask.app.link/wc?uri=${encodeURIComponent(wcUri)}`;
+            console.log('Fallback to window.open with URL:', fallbackLink);
             window.open(fallbackLink, '_blank', 'noopener,noreferrer');
           }, 500);
           
