@@ -25,8 +25,8 @@ export function WalletModal({ isOpen, onOpenChange, onConnectSuccess }: WalletMo
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
   // Check if MetaMask is installed
-  const isMetaMaskInstalled = typeof window !== 'undefined' && 
-    typeof (window as any).ethereum !== 'undefined' && 
+  const isMetaMaskInstalled = typeof window !== 'undefined' &&
+    typeof (window as any).ethereum !== 'undefined' &&
     (window as any).ethereum.isMetaMask;
 
   useEffect(() => {
@@ -40,7 +40,7 @@ export function WalletModal({ isOpen, onOpenChange, onConnectSuccess }: WalletMo
     event.preventDefault();
     setIsConnecting(true);
     setConnectionError(null);
-    
+
     try {
       // For mobile without MetaMask, open the app directly
       if (isMobile && !isMetaMaskInstalled) {
@@ -49,10 +49,10 @@ export function WalletModal({ isOpen, onOpenChange, onConnectSuccess }: WalletMo
         window.open(metamaskAppDeepLink, '_blank');
         return;
       }
-      
+
       // For web or mobile with MetaMask
       await connect();
-      
+
       // Close the modal and show success
       onOpenChange(false);
       toast.success("Wallet connected successfully");
@@ -88,7 +88,7 @@ export function WalletModal({ isOpen, onOpenChange, onConnectSuccess }: WalletMo
             Choose how you want to connect
           </DialogDescription>
         </DialogHeader>
-        
+
         <div className="grid gap-4 py-4">
           {(!isMetaMaskInstalled && !isMobile) ? (
             <div className="space-y-4">
@@ -119,26 +119,26 @@ export function WalletModal({ isOpen, onOpenChange, onConnectSuccess }: WalletMo
               <div className="space-y-3">
                 {/* Web Browser Option */}
                 <div className="rounded-lg border p-4 text-center">
-                <Wallet2 className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
-                <h3 className="font-medium">MetaMask not detected</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  You'll need to install MetaMask to continue.
-                </p>
-                <Button
-                  onClick={installMetaMask}
-                  disabled={isInstallingMetaMask}
-                  className="w-full"
-                >
-                  {isInstallingMetaMask ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Redirecting...
-                    </>
-                  ) : (
-                    'Install MetaMask'
-                  )}
-                </Button>
-              </div>
+                  <Wallet2 className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
+                  <h3 className="font-medium">MetaMask not detected</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    You'll need to install MetaMask to continue.
+                  </p>
+                  <Button
+                    onClick={installMetaMask}
+                    disabled={isInstallingMetaMask}
+                    className="w-full"
+                  >
+                    {isInstallingMetaMask ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Redirecting...
+                      </>
+                    ) : (
+                      'Install MetaMask'
+                    )}
+                  </Button>
+                </div>
 
                 {/* Mobile App Option - Only show on mobile devices */}
                 {showMobileOption && (
@@ -150,9 +150,9 @@ export function WalletModal({ isOpen, onOpenChange, onConnectSuccess }: WalletMo
                     disabled={isConnecting}
                   >
                     <div className="flex items-center gap-3">
-                      <img 
-                        src="https://images.ctfassets.net/clixtyxoaeas/4rnpEzy1ATWRKVBOLxZ1Fm/a74dc1eed36d23d7ea6030383a4d5163/MetaMask-icon-fox.svg" 
-                        alt="MetaMask Mobile" 
+                      <img
+                        src="https://images.ctfassets.net/clixtyxoaeas/4rnpEzy1ATWRKVBOLxZ1Fm/a74dc1eed36d23d7ea6030383a4d5163/MetaMask-icon-fox.svg"
+                        alt="MetaMask Mobile"
                         className="h-8 w-8"
                       />
                       <div className="text-left">
@@ -166,7 +166,7 @@ export function WalletModal({ isOpen, onOpenChange, onConnectSuccess }: WalletMo
               </div>
             </>
           )}
-          
+
           {connectionError && (
             <div className="rounded-md bg-red-50 p-4">
               <div className="flex">
@@ -181,7 +181,7 @@ export function WalletModal({ isOpen, onOpenChange, onConnectSuccess }: WalletMo
               </div>
             </div>
           )}
-          
+
           <p className="text-xs text-center text-muted-foreground">
             By connecting a wallet, you agree to our Terms of Service and our Privacy Policy.
           </p>
