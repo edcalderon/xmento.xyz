@@ -9,10 +9,34 @@ import { toast } from "sonner";
 import { useWallet } from "@/contexts/WalletContext";
 import { isMobile, isAndroid, isIOS } from "react-device-detect";
 
+
+// Clean URL by ensuring it doesn't have duplicate protocols
+const cleanUrl = (url: string, keepProtocol: boolean = false): string => {
+  if (!url) return '';
+  
+  // If we need to keep the protocol, just clean up the rest
+  if (keepProtocol) {
+    // Ensure there's exactly one protocol
+    const clean = url.replace(/^(https?:\/\/)(.*)/, (_, protocol, rest) => {
+      return `${protocol}${rest.replace(/^\/+/, '')}`;
+    });
+    return clean;
+  }
+  
+  // For paths or hostnames, remove all protocols and clean up
+  return url
+    .replace(/^https?:\/\//, '')  // Remove http:// or https://
+    .replace(/^\/\//, '')         // Remove protocol-relative //
+    .replace(/^\/*/, '')           // Remove leading slashes
+    .split('?')[0]                 // Remove query parameters
+    .split('#')[0];                // Remove fragments
+};
+
 // Get the current host and protocol for deep linking
 const getDappUrl = () => {
   if (typeof window === 'undefined') return '';
-  return encodeURIComponent(window.location.href);
+  const clean = cleanUrl(window.location.href, true);
+  return encodeURIComponent(clean);
 };
 
 interface WalletModalProps {
@@ -51,7 +75,7 @@ export function WalletModal({ isOpen, onOpenChange, onConnectSuccess }: WalletMo
         let deepLink = '';
         
         // Use the MetaMask universal link for mobile
-        deepLink = `https://metamask.app.link/dapp/${dappUrl.replace(/^https?:\/\//, '')}`;
+        deepLink = `https://metamask.app.link/dapp/${dappUrl}`;
         
         // For WalletConnect, we need to use the connect flow directly
         if (!isMetaMaskInstalled) {
