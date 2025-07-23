@@ -190,17 +190,17 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const redirectToMetaMaskApp = useCallback(() => {
     if (typeof window === 'undefined') return;
     
-    // Get the current hostname and clean it
+    // Get the current hostname without protocol
     const hostname = window.location.hostname;
-    const cleanHostname = cleanUrl(hostname);
     
-    // Create the deep link
-    const metamaskDeepLink = `https://metamask.app.link/dapp/${cleanHostname}`;
+    // Create the base deep link without any protocol
+    const baseUrl = hostname.replace(/^https?:\/\//, '');
+    const metamaskDeepLink = `https://metamask.app.link/dapp/${baseUrl}`;
     
     // Store the current URL to redirect back after wallet connection
-    // Ensure we have a clean URL with protocol for the redirect
     const currentUrl = new URL(window.location.href);
-    const cleanRedirectUrl = cleanUrl(currentUrl.toString(), true);
+    // Ensure we have a clean URL with protocol for the redirect
+    const cleanRedirectUrl = currentUrl.toString().replace(/([^:]\/)\/+/g, '$1');
     sessionStorage.setItem('postAuthRedirect', cleanRedirectUrl);
     
     // Log the URL for debugging
@@ -306,7 +306,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           connector: {
             id: injectedConnector.id,
             name: injectedConnector.name,
-            type: injectedConnector.type || 'injected'  // Default to 'injected' if type is not available
+            type: injectedConnector.type || 'injected' 
           },
           connectorName: injectedConnector.name
         });
