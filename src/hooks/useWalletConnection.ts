@@ -1,6 +1,6 @@
 import { useCallback, useState, useEffect } from 'react';
 import { useAccount, useConnect, useDisconnect } from 'wagmi';
-import { toast } from 'sonner';
+import { useToast } from '@/components/ui/use-toast';
 
 export type ConnectionMethod = 'injected' | 'walletconnect' | 'metaMask' | null;
 
@@ -18,6 +18,7 @@ interface UseWalletConnectionReturn {
 }
 
 export const useWalletConnection = (): UseWalletConnectionReturn => {
+  const { toast } = useToast();
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -95,7 +96,11 @@ export const useWalletConnection = (): UseWalletConnectionReturn => {
       }
 
       await connectAsync({ connector });
-      toast.success('Wallet connected successfully');
+      toast({
+        title: 'Success',
+        description: 'Wallet connected successfully',
+        variant: 'default'
+      });
     } catch (err) {
       console.error('Connection error:', err);
       let errorMessage = 'Failed to connect wallet';
@@ -112,7 +117,11 @@ export const useWalletConnection = (): UseWalletConnectionReturn => {
       
       setError(err instanceof Error ? err : new Error(errorMessage));
       setConnectionError(errorMessage);
-      toast.error(`Connection failed: ${errorMessage}`);
+      toast({
+        title: 'Error',
+        description: `Connection failed: ${errorMessage}`,
+        variant: 'destructive'
+      });
       throw err;
     } finally {
       setIsConnecting(false);
@@ -152,10 +161,18 @@ export const useWalletConnection = (): UseWalletConnectionReturn => {
   const disconnect = useCallback(async () => {
     try {
       await wagmiDisconnect();
-      toast.success('Wallet disconnected');
+      toast({
+        title: 'Success',
+        description: 'Wallet disconnected',
+        variant: 'default'
+      });
     } catch (err) {
       console.error('Disconnection error:', err);
-      toast.error('Failed to disconnect wallet');
+      toast({
+        title: 'Error',
+        description: 'Failed to disconnect wallet',
+        variant: 'destructive'
+      });
       throw err;
     }
   }, [wagmiDisconnect]);

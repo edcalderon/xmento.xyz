@@ -24,11 +24,6 @@ const nextConfig = {
         
         return config;
     },
-    // Configure external packages
-    experimental: {
-        // This is the new way to specify external packages
-        serverExternalPackages: ['@rainbow-me/rainbowkit', 'wagmi', 'viem']
-    },
     // Configure the compiler
     compiler: {
         // Disable removing React properties in production
@@ -54,11 +49,7 @@ const nextConfig = {
     images: {
         // Disable image optimization during build
         unoptimized: true,
-    },
-    // Configure webpack for better bundle analysis
-    webpackDevMiddleware: (config) => {
-        return config;
-    },
+    }
 };
 
 // Only require @next/bundle-analyzer in development

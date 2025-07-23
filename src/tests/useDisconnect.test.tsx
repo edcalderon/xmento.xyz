@@ -1,6 +1,6 @@
 import { renderHook, act } from '@testing-library/react';
 import { useDisconnect } from '@/hooks/useDisconnect';
-import { useWallet } from '@/contexts/WalletContext';
+import { useWallet } from '@/providers/wallet-provider';
 import { useDisconnect as useWagmiDisconnect } from 'wagmi';
 import { useToast } from '@/components/ui/use-toast';
 

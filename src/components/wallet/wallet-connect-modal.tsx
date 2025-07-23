@@ -2,12 +2,22 @@
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import React, { useEffect, useState } from "react";
-import { Loader2, ExternalLink, AlertCircle, ChevronRight } from "lucide-react";
-import { toast } from "sonner";
-import { useWalletConnection } from "@/contexts/useWalletConnection";
+import { useEffect, useState } from "react";
+import { Loader2, ExternalLink, AlertCircle, ChevronRight, ArrowLeft } from "lucide-react";
+import { useWalletConnection } from "@/hooks/useWalletConnection";
 import { isMobile } from "react-device-detect";
-import type { ConnectionMethod } from "@/contexts/useWalletConnection";
+import type { ConnectionMethod } from "@/hooks/useWalletConnection";
+import Image from "next/image";
+
+// Wallet Icons
+const WalletIcons: Record<string, string> = {
+  injected: 'wallet/logos/metamask.svg',
+  metaMask: 'wallet/logos/metamask.svg',
+  walletconnect: 'wallet/logos/walletconnect.svg',
+  default: 'wallet/logos/browser.svg'
+};
+
+const DEFAULT_WALLET_ICON = WalletIcons.default;
 
 interface WalletModalProps {
     isOpen: boolean;
@@ -42,10 +52,8 @@ export function WalletConnectModal({ isOpen, onOpenChange, onConnectSuccess }: W
             await handleConnect(method);
             onOpenChange(false);
             onConnectSuccess?.();
-            toast.success("Wallet connected successfully");
         } catch (err) {
             console.error('Connection error:', err);
-            // Error is already handled in the context
         }
     };
 
@@ -54,23 +62,43 @@ export function WalletConnectModal({ isOpen, onOpenChange, onConnectSuccess }: W
             return (
                 <div className="space-y-4">
                     <Button
-                        variant="outline"
-                        className="w-full justify-between"
+                        variant="ghost"
+                        className="w-full justify-start px-2 text-muted-foreground hover:text-foreground transition-colors"
                         onClick={() => setConnectionMethod(null)}
                         disabled={isConnecting}
                     >
-                        <span>← Back</span>
+                        <ArrowLeft className="h-4 w-4 mr-2" />
+                        <span>Back to connect</span>
                     </Button>
 
                     {connectionMethod === 'injected' && (
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                             <Button
-                                className="w-full justify-between"
+                                variant="outline"
+                                className="w-full h-14 px-4 rounded-xl border border-border/50 hover:border-primary/50 transition-colors"
                                 onClick={() => handleConnection('injected')}
                                 disabled={isConnecting}
                             >
-                                <span>Browser Wallet</span>
-                                {isConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />}
+                                <div className="flex items-center w-full">
+                                    <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center mr-3">
+                                        <Image 
+                                            src={WalletIcons.injected} 
+                                            alt="Browser Wallet" 
+                                            width={20} 
+                                            height={20} 
+                                            className="object-contain"
+                                            onError={(e) => {
+                                                (e.target as HTMLImageElement).src = DEFAULT_WALLET_ICON;
+                                            }}
+                                        />
+                                    </div>
+                                    <span className="font-medium">MetaMask</span>
+                                    <div className="ml-auto">
+                                        {isConnecting && (
+                                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                        )}
+                                    </div>
+                                </div>
                             </Button>
                             {!hasInjectedWallet && (
                                 <p className="text-sm text-muted-foreground text-center">
@@ -87,36 +115,85 @@ export function WalletConnectModal({ isOpen, onOpenChange, onConnectSuccess }: W
             <div className="space-y-4">
                 {showInjectedOption && (
                     <Button
-                        className="w-full justify-between"
+                        variant="outline"
+                        className="w-full h-14 px-4 rounded-xl border border-border/50 hover:border-primary/50 transition-colors"
                         onClick={() => setConnectionMethod('injected')}
                         disabled={isConnecting}
                     >
-                        <span>Browser Wallet</span>
-                        <ChevronRight className="h-4 w-4" />
+                        <div className="flex items-center w-full">
+                            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center mr-3">
+                                <Image 
+                                    src={WalletIcons.default} 
+                                    alt="Browser Wallet" 
+                                    width={20} 
+                                    height={20} 
+                                    className="object-contain"
+                                    onError={(e) => {
+                                        (e.target as HTMLImageElement).src = DEFAULT_WALLET_ICON;
+                                    }}
+                                />
+                            </div>
+                            <span className="font-medium">Browser Wallets</span>
+                            <ChevronRight className="h-4 w-4 ml-auto text-muted-foreground" />
+                        </div>
                     </Button>
                 )}
 
                 {showMetaMaskMobileOption && (
                     <Button
-                        className="w-full justify-between"
+                        variant="outline"
+                        className="w-full h-14 px-4 rounded-xl border border-border/50 hover:border-primary/50 transition-colors"
                         onClick={() => setConnectionMethod('metaMask')}
                         disabled={isConnecting}
                     >
-                        <span>MetaMask Mobile</span>
-                        <ExternalLink className="h-4 w-4" />
+                        <div className="flex items-center w-full">
+                            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center mr-3">
+                                <Image 
+                                    src={WalletIcons.metaMask} 
+                                    alt="MetaMask Mobile" 
+                                    width={20} 
+                                    height={20} 
+                                    className="object-contain"
+                                    onError={(e) => {
+                                        (e.target as HTMLImageElement).src = DEFAULT_WALLET_ICON;
+                                    }}
+                                />
+                            </div>
+                            <span className="font-medium">MetaMask Mobile</span>
+                            <ExternalLink className="h-4 w-4 ml-auto text-muted-foreground" />
+                        </div>
                     </Button>
                 )}
 
                 <div className="space-y-2">
                     <Button
-                        className="w-full justify-between"
+                        variant="outline"
+                        className="w-full h-14 px-4 rounded-xl border border-border/50 hover:border-primary/50 transition-colors"
                         onClick={() => handleConnection('walletconnect')}
                         disabled={isConnecting}
                     >
-                        <span>WalletConnect</span>
-                        {isConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />}
+                        <div className="flex items-center w-full">
+                            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center mr-3">
+                                <Image 
+                                    src={WalletIcons.walletconnect} 
+                                    alt="WalletConnect" 
+                                    width={20} 
+                                    height={20} 
+                                    className="object-contain"
+                                    onError={(e) => {
+                                        (e.target as HTMLImageElement).src = DEFAULT_WALLET_ICON;
+                                    }}
+                                />
+                            </div>
+                            <span className="font-medium">WalletConnect</span>
+                            <div className="ml-auto">
+                                {isConnecting && (
+                                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                )}
+                            </div>
+                        </div>
                     </Button>
-                    <p className="text-sm text-muted-foreground text-center">
+                    <p className="text-xs text-muted-foreground text-center px-2">
                         Connect with any wallet using WalletConnect
                     </p>
                 </div>
@@ -124,14 +201,29 @@ export function WalletConnectModal({ isOpen, onOpenChange, onConnectSuccess }: W
                 {isMobileBrowser && (
                     <div className="space-y-2">
                         <Button
-                            className="w-full justify-between"
+                            variant="outline"
+                            className="w-full h-14 px-4 rounded-xl border border-border/50 hover:border-primary/50 transition-colors"
                             onClick={() => handleConnection('metaMask')}
                             disabled={isConnecting}
                         >
-                            <span>Open in MetaMask Browser</span>
-                            <ExternalLink className="h-4 w-4" />
+                            <div className="flex items-center w-full">
+                                <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center mr-3">
+                                    <Image 
+                                        src={WalletIcons.metaMask} 
+                                        alt="MetaMask Browser" 
+                                        width={20} 
+                                        height={20} 
+                                        className="object-contain"
+                                        onError={(e) => {
+                                            (e.target as HTMLImageElement).src = DEFAULT_WALLET_ICON;
+                                        }}
+                                    />
+                                </div>
+                                <span className="font-medium">Open in MetaMask</span>
+                                <ExternalLink className="h-4 w-4 ml-auto text-muted-foreground" />
+                            </div>
                         </Button>
-                        <p className="text-sm text-muted-foreground text-center">
+                        <p className="text-xs text-muted-foreground text-center px-2">
                             Opens in MetaMask mobile app if installed
                         </p>
                     </div>
@@ -146,13 +238,15 @@ export function WalletConnectModal({ isOpen, onOpenChange, onConnectSuccess }: W
 
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                    <DialogTitle>Connect Wallet</DialogTitle>
-                    <DialogDescription>
+            <DialogContent className="sm:max-w-[400px] p-6 rounded-2xl">
+                <DialogHeader className="space-y-2">
+                    <DialogTitle className="text-2xl font-bold text-center">
+                        {connectionMethod ? 'Connect Wallet' : 'Connect a Wallet'}
+                    </DialogTitle>
+                    <DialogDescription className="text-center text-base">
                         {connectionMethod === 'metaMask'
                             ? 'Open the app to continue in MetaMask'
-                            : 'Choose how you want to connect'}
+                            : 'Choose how you want to connect to your wallet'}
                     </DialogDescription>
                 </DialogHeader>
 

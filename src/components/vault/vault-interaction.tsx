@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import React from 'react';
 import { useAccount, useReadContract, useWriteContract, usePublicClient, useDisconnect } from 'wagmi';
-import { useWallet } from '@/contexts/WalletContext';
+import { useWallet } from '@/providers/wallet-provider';
 import { isAddress } from 'viem';
 import { XmentoVaultFactoryABI } from './XmentoVaultFactoryABI';
 import { useToast } from '@/components/ui/use-toast';

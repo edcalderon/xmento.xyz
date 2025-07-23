@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Wallet2, Copy, Check, ChevronDown, Plus } from "lucide-react";
-import { useWalletConnection } from "@/contexts/useWalletConnection";
+import { useWalletConnection } from "@/hooks/useWalletConnection";
 import { useState, useCallback } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { CHAIN_IDS } from "@/lib/wagmi.config";

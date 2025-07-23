@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, ReactNode, useMemo } from 'react';
-import { useWalletConnection, type ConnectionMethod } from './useWalletConnection';
+import { useWalletConnection, type ConnectionMethod } from '../hooks/useWalletConnection';
 
 export interface WalletAccount {
   address: string | null;
