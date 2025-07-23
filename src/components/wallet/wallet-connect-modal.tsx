@@ -75,10 +75,62 @@ export function WalletConnectModal({ isOpen, onOpenChange, onConnectSuccess }: W
       } else if (method === 'walletconnect') {
         await connect('walletConnect');
       } else if (method === 'browser') {
+        // Store the current URL to redirect back after connection
+        const currentUrl = new URL(window.location.href);
+        const cleanRedirectUrl = currentUrl.toString();
+        
+        // Store in session storage for after the redirect back from MetaMask
+        sessionStorage.setItem('postAuthRedirect', cleanRedirectUrl);
+        
+        // Create a unique ID for this connection attempt
+        const connectionId = `conn_${Date.now()}`;
+        sessionStorage.setItem('connectionId', connectionId);
+        
+        // Create the deep link to MetaMask with redirect back to current page
         const dappUrl = getDappUrl();
-        const deepLink = `https://metamask.app.link/dapp/${dappUrl}`;
+        const deepLink = `https://metamask.app.link/dapp/${dappUrl}?redirect=${encodeURIComponent(cleanRedirectUrl)}`;
+        
+        // Open the deep link in a new tab
         window.open(deepLink, '_blank');
-        toast.info('Please return to this tab after connecting in MetaMask');
+        
+        // Set up a listener for when the user returns to the app
+        const handleVisibilityChange = () => {
+          if (document.visibilityState === 'visible') {
+            // Check if we have a connection in progress
+            const storedConnectionId = sessionStorage.getItem('connectionId');
+            if (storedConnectionId === connectionId) {
+              // Clear the stored ID
+              sessionStorage.removeItem('connectionId');
+              
+              // Try to connect with the injected provider
+              setTimeout(async () => {
+                try {
+                  await connect('injected');
+                  onOpenChange(false);
+                  onConnectSuccess?.();
+                } catch (err) {
+                  console.error('Failed to connect after redirect:', err);
+                  toast.error('Failed to connect after redirect. Please try again.');
+                } finally {
+                  setIsConnecting(false);
+                }
+              }, 1000); // Small delay to ensure the provider is injected
+            }
+            
+            // Clean up the listener
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+          }
+        };
+        
+        // Add the visibility change listener
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        
+        // Also set a timeout in case the visibility change event doesn't fire
+        setTimeout(() => {
+          document.removeEventListener('visibilitychange', handleVisibilityChange);
+        }, 30000); // 30 second timeout
+        
+        toast.info('Opening MetaMask...');
         return;
       }
       
