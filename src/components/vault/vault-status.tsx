@@ -35,8 +35,19 @@ export function VaultStatus({ address, exists = false }: VaultStatusProps) {
   const { chain } = useAccount();
   const chainId = chain?.id || DEFAULT_CHAIN;
 
+  // Track if component is mounted on client
+  const [isClient, setIsClient] = useState(false);
+
+  // Set isClient to true on mount (client-side only)
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
   // Skip existence check if we already know the vault exists
   useEffect(() => {
+    // Only run on client side
+    if (!isClient) return;
+
     const checkDeployedVault = async () => {
       setIsLoading(true);
 
@@ -55,7 +66,7 @@ export function VaultStatus({ address, exists = false }: VaultStatusProps) {
 
       try {
         // Check local storage first (only in browser environment)
-        if (typeof window !== 'undefined' && window?.localStorage) {
+        if (window?.localStorage) {
           try {
             const savedVault = window.localStorage.getItem(`vault_${address}`);
             if (savedVault) {
@@ -68,24 +79,30 @@ export function VaultStatus({ address, exists = false }: VaultStatusProps) {
           }
         }
 
+        // Skip if no ethereum provider
+        if (!window?.ethereum) {
+          console.warn('Ethereum provider not found');
+          setIsLoading(false);
+          return;
+        }
+
         // Factory contract ABI - this should match your deployed contract
         const factoryABI = [
           'function getVaultAddress(address) view returns (address)',
           'function createVault() returns (address)'
         ] as const;
 
-        // Get the provider from the window.ethereum object (browser only)
-        if (typeof window === 'undefined' || !window?.ethereum) {
-          console.warn('Ethereum provider not found');
-          setIsLoading(false);
-          return;
-        }
-
         const provider = new ethers.BrowserProvider(window.ethereum);
         const signer = await provider.getSigner();
 
         // Factory contract address - using the one from memory
-        const factoryAddress = CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES].factory as `0x${string}`;
+        const factoryAddress = CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES]?.factory as `0x${string}`;
+        if (!factoryAddress) {
+          console.error('Factory address not found for chain ID:', chainId);
+          setIsLoading(false);
+          return;
+        }
+
         const factory = new ethers.Contract(factoryAddress, factoryABI, signer);
 
         // Check if user already has a vault
@@ -93,7 +110,7 @@ export function VaultStatus({ address, exists = false }: VaultStatusProps) {
         if (vaultAddress && vaultAddress !== ethers.ZeroAddress) {
           setVaultAddress(vaultAddress);
           // Save to local storage (browser only)
-          if (typeof window !== 'undefined' && window?.localStorage) {
+          if (window?.localStorage) {
             try {
               window.localStorage.setItem(`vault_${address}`, vaultAddress);
             } catch (error) {

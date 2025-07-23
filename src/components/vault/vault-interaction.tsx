@@ -95,24 +95,25 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): Rea
   const { disconnect: disconnectWagmi } = useDisconnect();
 
   const handleDisconnect = useCallback(async () => {
+    // Only run on client side
+    if (typeof window === 'undefined') return;
+    
     try {
       setUserVaults([]);
       setVaultAddress(null);
       setIsManager(false);
 
-      if (typeof window !== 'undefined' && window?.localStorage) {
-        // Get all keys that start with vault_ or vaults_
-        const keysToRemove = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && (key.startsWith('vaults_') || key.startsWith('vault_'))) {
-            keysToRemove.push(key);
-          }
+      // Safe to access localStorage now
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith('vaults_') || key.startsWith('vault_'))) {
+          keysToRemove.push(key);
         }
-
-        // Remove all the keys we found
-        keysToRemove.forEach(key => localStorage.removeItem(key));
       }
+
+      // Remove all the keys we found
+      keysToRemove.forEach(key => localStorage.removeItem(key));
 
       // Disconnect from both wallet contexts
       await Promise.allSettled([
@@ -121,18 +122,14 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): Rea
       ]);
 
       // Force a page refresh to ensure clean state
-      if (typeof window !== 'undefined') {
-        setTimeout(() => {
-          window.location.reload();
-        }, 100);
-      }
+      setTimeout(() => {
+        window.location.reload();
+      }, 100);
 
     } catch (error) {
       console.error('Error during disconnect:', error);
       // Even if there's an error, try to force a refresh to ensure clean state
-      if (typeof window !== 'undefined') {
-        window.location.reload();
-      }
+      window.location.reload();
     }
   }, [setUserVaults, setVaultAddress, setIsManager, disconnectWallet, disconnectWagmi]);
 
@@ -156,15 +153,23 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): Rea
 
   // Use a ref to track the last address without causing re-renders
   const lastAddressRef = React.useRef<string | null>(null);
+  const [isClient, setIsClient] = React.useState(false);
+
+  // Set isClient to true on mount (client-side only)
+  React.useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   // Update the ref when userVaults changes
   React.useEffect(() => {
-    if (userVaults.length > 0) {
+    if (isClient && userVaults.length > 0) {
       lastAddressRef.current = userVaults[0]?.split('_')[2] || null;
     }
-  }, [userVaults]);
+  }, [userVaults, isClient]);
 
   useEffect(() => {
+    if (!isClient) return;
+    
     if (address) {
       const currentAddress = address;
       return () => {
@@ -179,7 +184,7 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): Rea
         clearVaultData(lastAddressRef.current);
       }
     }
-  }, [address, clearVaultData]); // Removed userVaults from dependencies
+  }, [address, clearVaultData, isClient]);
 
   const { data: userVaultAddress } = useReadContract({
     address: currentNetworkAddresses.factory,

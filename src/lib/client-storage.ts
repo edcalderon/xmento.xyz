@@ -8,7 +8,10 @@ import { useState, useCallback } from 'react';
  */
 
 // Check if we're in a browser environment
-const isBrowser = typeof window !== 'undefined' && typeof window.document !== 'undefined';
+const isBrowser = typeof window !== 'undefined' && 
+                 typeof window.document !== 'undefined' &&
+                 typeof window.localStorage !== 'undefined' &&
+                 typeof window.sessionStorage !== 'undefined';
 
 /**
  * Safe wrapper for localStorage operations
@@ -73,92 +76,6 @@ export const safeSessionStorage = {
 };
 
 /**
- * Safe wrapper for indexedDB operations
- */
-export const safeIndexedDB = {
-  isAvailable: (): boolean => {
-    if (typeof window === 'undefined') return false;
-    return 'indexedDB' in window && 
-           typeof window.indexedDB === 'object';
-  },
-  
-  open: (name: string, version?: number): IDBOpenDBRequest | null => {
-    if (typeof window === 'undefined' || !('indexedDB' in window)) return null;
-    try {
-      return window.indexedDB.open(name, version);
-    } catch (error) {
-      console.error('Error opening IndexedDB:', error);
-      return null;
-    }
-  },
-  
-  deleteDatabase: (name: string): IDBOpenDBRequest | null => {
-    if (typeof window === 'undefined' || !('indexedDB' in window)) return null;
-    try {
-      return window.indexedDB.deleteDatabase(name);
-    } catch (error) {
-      console.error('Error deleting IndexedDB database:', error);
-      return null;
-    }
-  },
-  
-  // Add a safe wrapper for all indexedDB operations
-  withSafeDB: async <T>(
-    operation: (db: IDBDatabase) => Promise<T>,
-    dbName: string,
-    version?: number
-  ): Promise<T | null> => {
-    if (typeof window === 'undefined' || !('indexedDB' in window)) {
-      console.warn('IndexedDB is not available in this environment');
-      return null;
-    }
-    
-    try {
-      return await new Promise<T | null>((resolve, reject) => {
-        const request = window.indexedDB.open(dbName, version);
-        
-        request.onerror = () => {
-          console.error('Error opening database');
-          reject(new Error('Failed to open database'));
-        };
-        
-        request.onsuccess = async () => {
-          const db = request.result;
-          
-          try {
-            // Execute the operation with the database
-            const result = await operation(db);
-            
-            // Close the database when done
-            if (db) {
-              db.close();
-            }
-            
-            // Resolve with the result
-            resolve(result);
-          } catch (error) {
-            console.error('Error in IndexedDB operation:', error);
-            if (db) {
-              db.close();
-            }
-            resolve(null);
-          }
-        };
-        
-        request.onupgradeneeded = (event) => {
-          // Handle database upgrades if needed
-          const db = (event.target as IDBOpenDBRequest).result;
-          console.log('Database upgrade needed', db);
-        };
-      });
-    } catch (error) {
-      console.error('Error in IndexedDB operation:', error);
-      return null;
-    }
-  }
-};
-
-/**
  * Hook to safely access client-side storage
  */
 export const useClientStorage = <T>(key: string, initialValue: T) => {
@@ -188,6 +105,5 @@ export const useClientStorage = <T>(key: string, initialValue: T) => {
 export default {
   localStorage: safeLocalStorage,
   sessionStorage: safeSessionStorage,
-  indexedDB: safeIndexedDB,
-  useClientStorage
+  // Add any additional storage utilities here
 };
