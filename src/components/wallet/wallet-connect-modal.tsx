@@ -75,60 +75,54 @@ export function WalletConnectModal({ isOpen, onOpenChange, onConnectSuccess }: W
       } else if (method === 'walletconnect') {
         await connect('walletConnect');
       } else if (method === 'browser') {
-        // Store the current URL to redirect back after connection
-        const currentUrl = new URL(window.location.href);
-        const cleanRedirectUrl = currentUrl.toString();
+        // For mobile browser flow, we'll use WalletConnect with MetaMask's universal link
+        const wcUri = `wc:${Date.now()}-1@1?bridge=https%3A%2F%2Fbridge.walletconnect.org&key=91303dedf64285cbbaf9120f6e9d160a5c8aa2deb250274feb16c1ea3e589fe7`;
         
-        // Store in session storage for after the redirect back from MetaMask
-        sessionStorage.setItem('postAuthRedirect', cleanRedirectUrl);
+        // Create the deep link with WalletConnect URI
+        const deepLink = `https://metamask.app.link/wc?uri=${encodeURIComponent(wcUri)}`;
         
-        // Create a unique ID for this connection attempt
+        // Store connection state
         const connectionId = `conn_${Date.now()}`;
         sessionStorage.setItem('connectionId', connectionId);
+        sessionStorage.setItem('connectionMethod', 'walletConnect');
         
-        // Create the deep link to MetaMask with redirect back to current page
-        const dappUrl = getDappUrl();
-        const deepLink = `https://metamask.app.link/dapp/${dappUrl}?redirect=${encodeURIComponent(cleanRedirectUrl)}`;
+        // Open the deep link
+        window.location.href = deepLink;
         
-        // Open the deep link in a new tab
-        window.open(deepLink, '_blank');
-        
-        // Set up a listener for when the user returns to the app
+        // Set up a listener for when the app returns to the foreground
         const handleVisibilityChange = () => {
           if (document.visibilityState === 'visible') {
-            // Check if we have a connection in progress
             const storedConnectionId = sessionStorage.getItem('connectionId');
             if (storedConnectionId === connectionId) {
               // Clear the stored ID
               sessionStorage.removeItem('connectionId');
               
-              // Try to connect with the injected provider
+              // Try to establish the connection
               setTimeout(async () => {
                 try {
-                  await connect('injected');
+                  await connect('walletConnect');
                   onOpenChange(false);
                   onConnectSuccess?.();
                 } catch (err) {
                   console.error('Failed to connect after redirect:', err);
-                  toast.error('Failed to connect after redirect. Please try again.');
+                  toast.error('Please try connecting again.');
                 } finally {
                   setIsConnecting(false);
                 }
-              }, 1000); // Small delay to ensure the provider is injected
+              }, 2000); // Give some time for the connection to establish
             }
             
-            // Clean up the listener
+            // Clean up
             document.removeEventListener('visibilitychange', handleVisibilityChange);
           }
         };
         
-        // Add the visibility change listener
         document.addEventListener('visibilitychange', handleVisibilityChange);
         
-        // Also set a timeout in case the visibility change event doesn't fire
+        // Cleanup after 30 seconds
         setTimeout(() => {
           document.removeEventListener('visibilitychange', handleVisibilityChange);
-        }, 30000); // 30 second timeout
+        }, 30000);
         
         toast.info('Opening MetaMask...');
         return;
