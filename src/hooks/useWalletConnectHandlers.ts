@@ -4,66 +4,10 @@ import { useState, useCallback, useMemo } from 'react';
 import { useToast } from "@/components/ui/use-toast";
 import { useWalletConnection } from "@/hooks/useWalletConnection";
 import { useAccount, useSwitchChain, useChainId } from 'wagmi';
-import { CHAIN_IDS } from "@/lib/wagmi.config";
 import { copyToClipboard, shortenAddress } from '@/lib/utils';
-import type { Network, NetworkID } from '@/types/network';
-import { SUPPORTED_CHAINS } from '@/lib/wagmi.config';
-
-type EIP1193Provider = {
-  request: (args: { method: string; params?: Array<unknown> }) => Promise<unknown>;
-};
-
-type AccountInfo = {
-  address: string;
-};
-
-const NETWORK_INFO: Record<number, Network> = {
-  [CHAIN_IDS.CELO_MAINNET]: {
-    id: CHAIN_IDS.CELO_MAINNET,
-    name: 'Celo Mainnet',
-    isTestnet: false,
-    icon: 'celo',
-  },
-  [CHAIN_IDS.CELO_ALFAJORES]: {
-    id: CHAIN_IDS.CELO_ALFAJORES,
-    name: 'Celo Alfajores',
-    isTestnet: true,
-    icon: 'celo',
-  },
-};
-
-
-
-interface WalletConnectHandlers {
-  isModalOpen: boolean;
-  setIsModalOpen: (open: boolean) => void;
-  isSwitching: boolean;
-  setIsSwitching: (switching: boolean) => void;
-  isNetworkDropdownOpen: boolean;
-  setIsNetworkDropdownOpen: (open: boolean) => void;
-  isAccountDropdownOpen: boolean;
-  setIsAccountDropdownOpen: (open: boolean) => void;
-  copied: boolean;
-  setCopied: (copied: boolean) => void;
-  isSwitchingAccount: boolean;
-  setIsSwitchingAccount: (switching: boolean) => void;
-  isDisconnecting: boolean;
-  setIsDisconnecting: (disconnecting: boolean) => void;
-  isNetworkModalOpen: boolean;
-  setIsNetworkModalOpen: (open: boolean) => void;
-  isAccountModalOpen: boolean;
-  setIsAccountModalOpen: (open: boolean) => void;
-  handleSwitchNetwork: (targetChainId: NetworkID) => Promise<void>;
-  handleConnect: () => void;
-  handleDisconnect: () => Promise<void>;
-  handleCopyAddress: () => void;
-  handleSwitchAccount: (address: string) => Promise<void>;
-  handleAddAccount: () => Promise<void>;
-  isSupportedChain: boolean;
-  networkInfo: Record<number, Network>;
-  otherAccounts: AccountInfo[];
-  formattedAddress: string;
-}
+import type {  NetworkID } from '@/types/network';
+import type { WalletConnectHandlers, AccountInfo, EIP1193Provider } from '@/types/wallet';
+import { SUPPORTED_CHAINS, NETWORK_INFO } from '@/lib/wagmi.config';
 
 export function useWalletConnectHandlers(): WalletConnectHandlers {
   const { toast } = useToast();

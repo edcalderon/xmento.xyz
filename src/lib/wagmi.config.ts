@@ -1,6 +1,7 @@
 import { http, createConfig } from 'wagmi';
 import { injected, walletConnect, metaMask } from 'wagmi/connectors';
 import { celo, celoAlfajores } from 'viem/chains';
+import { NetworkInfo } from '@/types/network';
 
 // Configure Celo chains with proper RPC URLs
 const celoMainnet = {
@@ -53,5 +54,20 @@ export const CHAIN_IDS = {
 
 export const DEFAULT_CHAIN = celoTestnet; // Default to testnet for development
 export const SUPPORTED_CHAINS = [celoMainnet, celoTestnet];
+
+export const NETWORK_INFO: Record<number, NetworkInfo> = {
+  [CHAIN_IDS.CELO_MAINNET]: {
+    id: CHAIN_IDS.CELO_MAINNET,
+    name: 'Celo Mainnet',
+    isTestnet: false,
+    icon: 'celo',
+  },
+  [CHAIN_IDS.CELO_ALFAJORES]: {
+    id: CHAIN_IDS.CELO_ALFAJORES,
+    name: 'Celo Alfajores',
+    isTestnet: true,
+    icon: 'celo',
+  },
+};
 
 export default config;

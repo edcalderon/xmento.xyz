@@ -6,43 +6,11 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAccount } from 'wagmi';
 import { CHAIN_IDS } from "@/lib/wagmi.config";
-import type { Account } from '@/types/wallet';
-import type { NetworkInfo } from '@/types/network';
+import type { WalletViewDesktopProps } from '@/types/wallet';
 
-
-export interface WalletConnectButtonDesktopProps {
-  className?: string;
-  variant?: "default" | "outline" | "ghost" | "link";
-  size?: "default" | "sm" | "lg" | "icon";
-  showNetworkSwitcher?: boolean;
-  address?: `0x${string}`;
-  isConnecting?: boolean;
-  isSwitching?: boolean;
-  isSwitchingAccount?: boolean;
-  isDisconnecting?: boolean;
-  isAccountDropdownOpen?: boolean;
-  setIsAccountDropdownOpen?: (open: boolean) => void;
-  isNetworkDropdownOpen?: boolean;
-  setIsNetworkDropdownOpen?: (open: boolean) => void;
-  handleConnect?: () => void;
-  handleDisconnect?: () => void;
-  handleSwitchNetwork?: (chainId: number) => void;
-  handleCopyAddress?: () => void;
-  handleSwitchAccount?: (address: string) => void;
-  isSupportedChain?: boolean;
-  networkInfo?: Record<number, NetworkInfo>;
-  otherAccounts?: Account[];
-  handleAddAccount?: () => void;
-  formattedAddress?: string;
-  connector?: {
-    id: string;
-    name: string;
-  };
-}
-
-export function WalletConnectButtonDesktop({
+export function WalletViewDesktop({
   className = "",
-  size = "default",
+  size = "sm",
   showNetworkSwitcher = true,
   address,
   isConnecting = false,
@@ -62,7 +30,7 @@ export function WalletConnectButtonDesktop({
   otherAccounts = [],
   handleAddAccount = () => { },
   formattedAddress = '',
-}: WalletConnectButtonDesktopProps) {
+}: WalletViewDesktopProps) {
   const { chain, connector } = useAccount();
 
   // If no address is provided, this shouldn't be rendered
@@ -82,7 +50,7 @@ export function WalletConnectButtonDesktop({
           <DropdownMenuTrigger asChild>
             <Button
               variant="outline"
-              size="sm"
+              size={size}
               className="flex items-center gap-1.5"
               disabled={isSwitching}
             >
