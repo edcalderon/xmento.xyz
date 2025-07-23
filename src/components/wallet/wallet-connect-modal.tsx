@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import React, { useEffect, useState } from "react";
 import { Loader2, ExternalLink, AlertCircle, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
-import { useWallet } from "@/contexts/WalletContext";
+import { useWalletConnection } from "@/contexts/useWalletConnection";
 import { isMobile } from "react-device-detect";
+import type { ConnectionMethod } from "@/contexts/useWalletConnection";
 
 interface WalletModalProps {
   isOpen: boolean;
@@ -16,13 +17,18 @@ interface WalletModalProps {
 
 export function WalletConnectModal({ isOpen, onOpenChange, onConnectSuccess }: WalletModalProps): JSX.Element {
   const { 
-    handleConnect, 
+    connect: handleConnect, 
     isConnecting, 
     connectionError, 
     isMobileBrowser,
-    isMetaMaskInstalled 
-  } = useWallet();
-  const [connectionMethod, setConnectionMethod] = useState<'injected' | 'walletconnect' | 'browser' | null>(null);
+    isMetaMaskInstalled,
+    hasInjectedWallet
+  } = useWalletConnection();
+  const [connectionMethod, setConnectionMethod] = useState<ConnectionMethod | null>(null);
+  
+  // Show appropriate wallet options based on environment
+  const showInjectedOption = hasInjectedWallet || isMobileBrowser;
+  const showMetaMaskMobileOption = isMobileBrowser && !hasInjectedWallet;
 
   useEffect(() => {
     if (!isOpen) {
@@ -30,10 +36,10 @@ export function WalletConnectModal({ isOpen, onOpenChange, onConnectSuccess }: W
     }
   }, [isOpen]);
 
-  const handleConnection = async (method: 'injected' | 'walletconnect' | 'browser') => {
+  const handleConnection = async (method: ConnectionMethod) => {
     try {
       setConnectionMethod(method);
-      await handleConnect(method === 'walletconnect' ? 'walletconnect' : method === 'injected' ? 'injected' : 'browser');
+      await handleConnect(method);
       onOpenChange(false);
       onConnectSuccess?.();
       toast.success("Wallet connected successfully");
@@ -57,36 +63,53 @@ export function WalletConnectModal({ isOpen, onOpenChange, onConnectSuccess }: W
           </Button>
           
           {connectionMethod === 'injected' && (
-            <Button
-              className="w-full justify-between"
-              onClick={() => handleConnection('injected')}
-              disabled={isConnecting}
-            >
-              <span>MetaMask</span>
-              {isConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />}
-            </Button>
+            <div className="space-y-2">
+              <Button
+                className="w-full justify-between"
+                onClick={() => handleConnection('injected')}
+                disabled={isConnecting}
+              >
+                <span>Browser Wallet</span>
+                {isConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />}
+              </Button>
+              {!hasInjectedWallet && (
+                <p className="text-sm text-muted-foreground text-center">
+                  No browser wallet detected. Install MetaMask or another Web3 wallet.
+                </p>
+              )}
+            </div>
           )}
           
           {connectionMethod === 'walletconnect' && (
-            <Button
-              className="w-full justify-between"
-              onClick={() => handleConnection('walletconnect')}
-              disabled={isConnecting}
-            >
-              <span>WalletConnect</span>
-              {isConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />}
-            </Button>
+            <div className="space-y-2">
+              <Button
+                className="w-full justify-between"
+                onClick={() => handleConnection('walletconnect')}
+                disabled={isConnecting}
+              >
+                <span>WalletConnect</span>
+                {isConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />}
+              </Button>
+              <p className="text-sm text-muted-foreground text-center">
+                Connect with any wallet using WalletConnect
+              </p>
+            </div>
           )}
           
-          {connectionMethod === 'browser' && (
-            <Button
-              className="w-full justify-between"
-              onClick={() => handleConnection('browser')}
-              disabled={isConnecting}
-            >
-              <span>Open in MetaMask Browser</span>
-              <ExternalLink className="h-4 w-4" />
-            </Button>
+          {connectionMethod === 'metaMask' && (
+            <div className="space-y-2">
+              <Button
+                className="w-full justify-between"
+                onClick={() => handleConnection('metaMask')}
+                disabled={isConnecting}
+              >
+                <span>Open in MetaMask Browser</span>
+                <ExternalLink className="h-4 w-4" />
+              </Button>
+              <p className="text-sm text-muted-foreground text-center">
+                Opens in MetaMask mobile app if installed
+              </p>
+            </div>
           )}
         </div>
       );
@@ -94,14 +117,27 @@ export function WalletConnectModal({ isOpen, onOpenChange, onConnectSuccess }: W
 
     return (
       <div className="space-y-4">
-        <Button
-          className="w-full justify-between"
-          onClick={() => setConnectionMethod('injected')}
-          disabled={isConnecting}
-        >
-          <span>Browser Wallet</span>
-          <ChevronRight className="h-4 w-4" />
-        </Button>
+        {showInjectedOption && (
+          <Button
+            className="w-full justify-between"
+            onClick={() => setConnectionMethod('injected')}
+            disabled={isConnecting}
+          >
+            <span>Browser Wallet</span>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        )}
+        
+        {showMetaMaskMobileOption && (
+          <Button
+            className="w-full justify-between"
+            onClick={() => setConnectionMethod('metaMask')}
+            disabled={isConnecting}
+          >
+            <span>MetaMask Mobile</span>
+            <ExternalLink className="h-4 w-4" />
+          </Button>
+        )}
         
         <Button
           variant="outline"
@@ -117,7 +153,7 @@ export function WalletConnectModal({ isOpen, onOpenChange, onConnectSuccess }: W
           <Button
             variant="outline"
             className="w-full justify-between"
-            onClick={() => setConnectionMethod('browser')}
+            onClick={() => setConnectionMethod('metaMask')}
             disabled={isConnecting}
           >
             <span>Open in MetaMask</span>
@@ -138,7 +174,7 @@ export function WalletConnectModal({ isOpen, onOpenChange, onConnectSuccess }: W
         <DialogHeader>
           <DialogTitle>Connect Wallet</DialogTitle>
           <DialogDescription>
-            {connectionMethod === 'browser' 
+            {connectionMethod === 'metaMask' 
               ? 'Open the app to continue in MetaMask'
               : 'Choose how you want to connect'}
           </DialogDescription>
@@ -168,6 +204,9 @@ export function WalletConnectModal({ isOpen, onOpenChange, onConnectSuccess }: W
             </div>
           )}
         </div>
+        <p className="text-xs text-center text-muted-foreground">
+            By connecting a wallet, you agree to our Terms of Service and our Privacy Policy.
+          </p>
       </DialogContent>
     </Dialog>
   );

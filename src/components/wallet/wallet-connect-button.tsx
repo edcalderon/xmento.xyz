@@ -2,8 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Wallet2, Copy, Check, ChevronDown, Plus } from "lucide-react";
-import { useWallet } from "@/contexts/WalletContext";
-import { WalletModal } from "./wallet-modal";
+import { useWalletConnection } from "@/contexts/useWalletConnection";
 import { useState, useCallback } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { CHAIN_IDS } from "@/lib/wagmi.config";
@@ -50,11 +49,11 @@ export function WalletConnectButton({
   showNetworkSwitcher = true,
 }: WalletConnectButtonProps) {
   const { toast } = useToast();
-  const { account, isConnected, isConnecting, disconnect } = useWallet();
-  const { chain, connector, addresses } = useAccount();
+  const { address: account, isConnected, disconnect, isConnecting, error, connectionError, isMobileBrowser, isMetaMaskInstalled, connect } = useWalletConnection();
+  const { addresses, connector, chain } = useAccount();
   const { switchChain } = useSwitchChain();
   const currentChainId = useChainId();
-  const { connect } = useConnect();
+
 
   // State management
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -65,7 +64,7 @@ export function WalletConnectButton({
   const [isSwitchingAccount, setIsSwitchingAccount] = useState(false);
 
   // Check if current chain is supported
-  const isSupportedChain = chain?.id ? SUPPORTED_CHAINS.includes(chain.id as NetworkID) : false;
+  const isSupportedChain = currentChainId ? SUPPORTED_CHAINS.includes(currentChainId as NetworkID) : false;
 
   // Handle network switching
   const handleSwitchNetwork = async (targetChainId: NetworkID) => {
@@ -139,12 +138,10 @@ export function WalletConnectButton({
   };
 
   // Get other available accounts
-  const otherAccounts = (addresses || [])
-    .filter(addr => addr.toLowerCase() !== account?.address?.toLowerCase())
-    .map(addr => ({
-      address: addr,
-      connector: connector as any
-    }));
+  const otherAccounts = (addresses || []).filter(addr => addr.toLowerCase() !== account?.toLowerCase()).map(addr => ({
+    address: addr,
+    connector
+  }));
 
   // Handle adding a new account or switching accounts in MetaMask
   const handleAddAccount = useCallback(async () => {
@@ -202,7 +199,7 @@ export function WalletConnectButton({
       setIsSwitchingAccount(true);
 
       // Check if the target account is already connected
-      if (account?.address?.toLowerCase() === targetAddress.toLowerCase()) {
+      if (account && account.toLowerCase() === targetAddress.toLowerCase()) {
         toast({
           title: 'Account already active',
           description: 'This account is already connected',
@@ -227,7 +224,7 @@ export function WalletConnectButton({
         await connector.connect({
           chainId: chain?.id,
           // Some wallets support passing the account directly
-          ...(connector.id === 'injected' && { account: targetAddress as `0x${string}` })
+          ...(connector.id === 'injected' && { account: targetAddress })
         });
       }
 
@@ -263,11 +260,6 @@ export function WalletConnectButton({
           Connect Wallet
         </Button>
 
-     {/*    <WalletModal
-          isOpen={isModalOpen}
-          onOpenChange={setIsModalOpen}
-          onConnectSuccess={() => setIsModalOpen(false)}
-        /> */}
         <WalletConnectModal
           isOpen={isModalOpen}
           onOpenChange={setIsModalOpen}
@@ -314,7 +306,7 @@ export function WalletConnectButton({
       )}
 
       {/* Account Switcher */}
-      {account?.address && (
+      {account && (
         <DropdownMenu open={isAccountDropdownOpen} onOpenChange={setIsAccountDropdownOpen}>
           <DropdownMenuTrigger asChild>
             <Button
@@ -325,7 +317,7 @@ export function WalletConnectButton({
             >
               <div className="h-2 w-2 rounded-full bg-green-500" />
               <span className="hidden sm:inline">
-                {`${account.address.slice(0, 6)}...${account.address.slice(-4)}`}
+                {`${account.slice(0, 6)}...${account.slice(-4)}`}
               </span>
               <ChevronDown className="h-4 w-4 opacity-50" />
             </Button>
@@ -336,7 +328,7 @@ export function WalletConnectButton({
               className="opacity-100 hover:bg-accent cursor-pointer"
               onClick={(e) => {
                 e.stopPropagation();
-                copyToClipboard(account.address);
+                copyToClipboard(account);
               }}
             >
               <div className="flex flex-col w-full">
@@ -351,7 +343,7 @@ export function WalletConnectButton({
                         <TooltipTrigger asChild>
                           <button
                             className="p-1 text-muted-foreground hover:text-foreground rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
-                            onClick={() => copyToClipboard(account.address)}
+                            onClick={() => copyToClipboard(account)}
                           >
                             <Copy className="h-3.5 w-3.5" />
                           </button>
@@ -364,22 +356,10 @@ export function WalletConnectButton({
                   </span>
                 </div>
                 <div className="flex items-center justify-between mt-1">
-                  <span className="text-sm text-muted-foreground truncate font-mono">
-                    {`${account.address.slice(0, 8)}...${account.address.slice(-6)}`}
-                  </span>
-                </div>
-                <a
-                  href={`https://${chain?.id === CHAIN_IDS.CELO_MAINNET ? 'celo' : 'celo-alfajores'}.blockscout.com/address/${account.address}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-blue-500 hover:underline mt-1 flex items-center"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <span>View on Explorer</span>
                   <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                   </svg>
-                </a>
+                </div>
               </div>
             </DropdownMenuItem>
             <div className="px-2 py-1.5 mt-1">
@@ -398,7 +378,7 @@ export function WalletConnectButton({
                   <div className="flex items-center gap-2 w-full">
                     <div className="w-2 h-2 rounded-full bg-primary/50"></div>
                     <span className="font-mono text-sm truncate">
-                      {`${account.address.slice(0, 8)}...${account.address.slice(-6)}`}
+                      {`${account?.address.slice(0, 8)}...${account?.address.slice(-6)}`}
                     </span>
                   </div>
                 </DropdownMenuItem>
