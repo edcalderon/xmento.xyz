@@ -1,16 +1,17 @@
+import React from 'react';
 import { Inter } from "next/font/google";
 import { Navbar } from "@/components/navbar";
-import { Providers } from "@/components/providers";
 import { Toaster } from "@/components/ui/toaster";
+import { Providers } from "@/providers/providers";
 import "./globals.css";
-
-const inter = Inter({ subsets: ["latin"] });
 
 import { siteConfig } from '@/config/site';
 import { viewport } from '@/config/site';
 
 export { viewport };
 export const metadata = siteConfig;
+
+const inter = Inter({ subsets: ["latin"] });
 
 export default function RootLayout({
   children,

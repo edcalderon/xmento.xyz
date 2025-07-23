@@ -2,7 +2,7 @@
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 
 import { Loader2, Wallet2, Smartphone, ExternalLink, AlertCircle } from "lucide-react";
 import { toast } from "sonner";

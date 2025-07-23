@@ -1,8 +1,8 @@
 "use client";
 
 import { ThemeSwitcher } from "@/components/theme-switcher";
-import { WalletConnectButton } from "@/components/wallet/wallet-connect-button";
-import { version } from "../../package.json";
+import { ConnectWallet } from "@/components/wallet/ConnectWallet";
+const { version } = require("../../package.json");
 
 export function Navbar() {
   return (
@@ -20,8 +20,8 @@ export function Navbar() {
           <div className="w-full flex-1 md:w-auto md:flex-none">
             {/* Navigation items can be added here */}
           </div>
-          <nav className="flex items-center gap-2">
-            <WalletConnectButton showNetworkSwitcher={true} />
+          <nav className="flex items-center gap-4">
+            <ConnectWallet />
             <ThemeSwitcher />
           </nav>
         </div>

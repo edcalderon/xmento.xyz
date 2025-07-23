@@ -13,7 +13,7 @@ type Token = "CELO" | "cUSD";
 type SocialTag = "github" | "twitter";
 
 interface IdentityProps {
-  address?: Address;
+  address?: `0x${string}`;
   token?: Token;
   className?: string;
   children?: React.ReactNode;

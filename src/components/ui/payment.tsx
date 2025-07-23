@@ -13,8 +13,8 @@ type Chain = typeof celo;
 
 interface PaymentProps {
   amount?: string;
-  tokenAddress?: Address;
-  recipientAddress?: Address;
+  tokenAddress?: `0x${string}`;
+  recipientAddress?: `0x${string}`;
   onSuccess?: (txHash: string) => void;
   onError?: (error: Error) => void;
   children?: React.ReactNode;

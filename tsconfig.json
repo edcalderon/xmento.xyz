@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "esnext",
     "module": "esnext",
-    "moduleResolution": "bundler",
+    "moduleResolution": "node",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
@@ -13,23 +13,25 @@
     "resolveJsonModule": true,
     "typeRoots": [
       "./node_modules/@types",
-      "./typechain-types"
+      "./typechain-types",
+      "./src/types"
     ],
     "types": [
-      "node"
+      "node",
+      "react",
+      "react-dom"
     ],
     "lib": [
       "esnext",
-      "dom"
+      "dom",
+      "dom.iterable"
     ],
     "baseUrl": ".",
     "paths": {
-      "@/*": [
-        "./src/*"
-      ],
-      "@composer-kit/*": [
-        "./node_modules/@composer-kit/*"
-      ]
+      "@composer-kit/ui": ["node_modules/@composer-kit/ui/dist/index.d.ts"],
+      "@composer-kit/ui/*": ["node_modules/@composer-kit/ui/dist/*/index.d.ts"],
+      "@/*": ["./src/*"],
+      "@composer-kit/*": ["./node_modules/@composer-kit/*"]
     },
     "allowJs": true,
     "noEmit": true,

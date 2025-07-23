@@ -8,7 +8,7 @@ import {
 
 interface TransactionConfig {
   abi: Array<any>;
-  address: string;
+  address: `0x${string}`;
   args: Array<any>;
   functionName: string;
 }

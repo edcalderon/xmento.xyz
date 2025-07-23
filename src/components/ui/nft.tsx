@@ -10,7 +10,7 @@ import {
 } from "@composer-kit/ui/nft";
 
 interface NFTProps {
-  contractAddress?: string;
+  contractAddress?: `0x${string}`;
   tokenId?: bigint;
   className?: string;
   children?: React.ReactNode;
