@@ -1,5 +1,4 @@
 import { http, createConfig } from 'wagmi';
-import { getDefaultConfig } from '@rainbow-me/rainbowkit';
 import { celoMainnet, celoTestnet } from './chains';
 import { connectorsForWallets } from '@rainbow-me/rainbowkit';
 import {
@@ -9,7 +8,9 @@ import {
 
 // Get project ID from environment variables
 const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || '';
-if (!projectId) {
+
+// Warn if project ID is not set
+if (!projectId && typeof window !== 'undefined') {
   console.warn('NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is not set. WalletConnect will not work properly.');
 }
 

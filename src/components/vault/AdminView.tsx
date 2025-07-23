@@ -19,7 +19,7 @@ interface AdminViewProps {
 export function AdminView({ vaultAddress, chainId }: AdminViewProps) {
   const { toast } = useToast();
   const [withdrawAmount, setWithdrawAmount] = useState('');
-  const [vaultBalance, setVaultBalance] = useState<bigint>(0n);
+  const [vaultBalance, setVaultBalance] = useState<bigint>(BigInt(0));
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Read vault balance

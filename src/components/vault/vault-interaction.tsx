@@ -34,7 +34,7 @@ type BrowserWindow = Window & typeof globalThis & {
 
 declare const window: BrowserWindow | undefined;
 
-export function VaultInteraction({ factoryAddress }: VaultInteractionProps): JSX.Element {
+export function VaultInteraction({ factoryAddress }: VaultInteractionProps): React.JSX.Element {
   const [selectedToken, setSelectedToken] = useState<TokenSymbol>('cUSD');
   const [vaultAddress, setVaultAddress] = useState<`0x${string}` | null>(null);
   const [isWrongNetwork, setIsWrongNetwork] = useState<boolean>(false);

@@ -1,16 +1,27 @@
 {
   "compilerOptions": {
-    "target": "esnext",
+    "target": "es5",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "forceConsistentCasingInFileNames": true,
-    "strict": true,
-    "skipLibCheck": true,
-    "outDir": "dist",
-    "rootDir": ".",
     "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "jsxImportSource": "react",
+    "incremental": true,
+    "baseUrl": ".",
+    "paths": {
+      "@composer-kit/ui": ["node_modules/@composer-kit/ui/dist/index.d.ts"],
+      "@composer-kit/ui/*": ["node_modules/@composer-kit/ui/dist/*/index.d.ts"],
+      "@/*": ["./src/*"],
+      "@composer-kit/*": ["./node_modules/@composer-kit/*"]
+    },
     "typeRoots": [
       "./node_modules/@types",
       "./src/types"
@@ -18,25 +29,9 @@
     "types": [
       "node",
       "react",
-      "react-dom"
+      "react-dom",
+      "next"
     ],
-    "lib": [
-      "esnext",
-      "dom",
-      "dom.iterable"
-    ],
-    "baseUrl": ".",
-    "paths": {
-      //"@composer-kit/ui": ["node_modules/@composer-kit/ui/dist/index.d.ts"],
-      //"@composer-kit/ui/*": ["node_modules/@composer-kit/ui/dist/*/index.d.ts"],
-      "@/*": ["./src/*"],
-      "@composer-kit/*": ["./node_modules/@composer-kit/*"]
-    },
-    "allowJs": true,
-    "noEmit": true,
-    "incremental": true,
-    "isolatedModules": true,
-    "jsx": "preserve",
     "plugins": [
       {
         "name": "next"
