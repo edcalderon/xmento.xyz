@@ -43,12 +43,12 @@ const nextConfig = {
     // Configure TypeScript
     typescript: {
         // Ignore TypeScript errors during build
-        ignoreBuildErrors: true,
+        ignoreBuildErrors: false,
     },
     // Configure ESLint
     eslint: {
         // Don't run ESLint during build
-        ignoreDuringBuilds: true,
+        ignoreDuringBuilds: false,
     },
     // Configure images
     images: {

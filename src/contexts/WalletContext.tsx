@@ -191,7 +191,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     if (typeof window === 'undefined') return;
     
     // Get the current hostname without protocol
-    const hostname = window.location.hostname;
+    const hostname = window.location.origin;
     
     // Create the base deep link without any protocol
     const baseUrl = hostname.replace(/^https?:\/\//, '');
