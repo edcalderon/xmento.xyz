@@ -77,13 +77,13 @@ export const safeSessionStorage = {
  */
 export const safeIndexedDB = {
   isAvailable: (): boolean => {
-    return isBrowser && 
-           'indexedDB' in window && 
+    if (typeof window === 'undefined') return false;
+    return 'indexedDB' in window && 
            typeof window.indexedDB === 'object';
   },
   
   open: (name: string, version?: number): IDBOpenDBRequest | null => {
-    if (!isBrowser || !('indexedDB' in window)) return null;
+    if (typeof window === 'undefined' || !('indexedDB' in window)) return null;
     try {
       return window.indexedDB.open(name, version);
     } catch (error) {
@@ -93,11 +93,66 @@ export const safeIndexedDB = {
   },
   
   deleteDatabase: (name: string): IDBOpenDBRequest | null => {
-    if (!isBrowser || !('indexedDB' in window)) return null;
+    if (typeof window === 'undefined' || !('indexedDB' in window)) return null;
     try {
       return window.indexedDB.deleteDatabase(name);
     } catch (error) {
       console.error('Error deleting IndexedDB database:', error);
+      return null;
+    }
+  },
+  
+  // Add a safe wrapper for all indexedDB operations
+  withSafeDB: async <T>(
+    operation: (db: IDBDatabase) => Promise<T>,
+    dbName: string,
+    version?: number
+  ): Promise<T | null> => {
+    if (typeof window === 'undefined' || !('indexedDB' in window)) {
+      console.warn('IndexedDB is not available in this environment');
+      return null;
+    }
+    
+    try {
+      return await new Promise<T | null>((resolve, reject) => {
+        const request = window.indexedDB.open(dbName, version);
+        
+        request.onerror = () => {
+          console.error('Error opening database');
+          reject(new Error('Failed to open database'));
+        };
+        
+        request.onsuccess = async () => {
+          const db = request.result;
+          
+          try {
+            // Execute the operation with the database
+            const result = await operation(db);
+            
+            // Close the database when done
+            if (db) {
+              db.close();
+            }
+            
+            // Resolve with the result
+            resolve(result);
+          } catch (error) {
+            console.error('Error in IndexedDB operation:', error);
+            if (db) {
+              db.close();
+            }
+            resolve(null);
+          }
+        };
+        
+        request.onupgradeneeded = (event) => {
+          // Handle database upgrades if needed
+          const db = (event.target as IDBOpenDBRequest).result;
+          console.log('Database upgrade needed', db);
+        };
+      });
+    } catch (error) {
+      console.error('Error in IndexedDB operation:', error);
       return null;
     }
   }
