@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { WagmiProvider } from 'wagmi';
-import { RainbowKitProvider } from '@rainbow-me/rainbowkit';
+//import { RainbowKitProvider } from '@rainbow-me/rainbowkit';
 import { config } from '@/lib/wagmi.config';
 import { useTheme } from 'next-themes';
 import { WalletProvider } from "@/contexts/WalletContext";
@@ -19,7 +19,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <QueryClientProvider client={queryClient}>
         <WalletProvider>
           <ThemeProvider>
-            <RainbowKitProvider
+         {/*    <RainbowKitProvider
               theme={getCustomTheme(theme === 'dark')}
               modalSize="compact"
               appInfo={{
@@ -27,9 +27,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
                 learnMoreUrl: 'https://xmento.xyz',
               }}
               showRecentTransactions={false}
-            >
+            > */}
               {children}
-            </RainbowKitProvider>
+           {/*  </RainbowKitProvider> */}
           </ThemeProvider>
         </WalletProvider>
       </QueryClientProvider>

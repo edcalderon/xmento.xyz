@@ -101,7 +101,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     metadata: {
       name: 'Xmento',
       description: 'Earn yield on your Mento stables',
-      url: 'https://xmento.xyz',
+      url: 'xmento.xyz',
       icons: ['https://xmento.xyz/icon.png'],
     },
   };
