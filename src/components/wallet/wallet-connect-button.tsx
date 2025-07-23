@@ -10,6 +10,7 @@ import { CHAIN_IDS } from "@/lib/wagmi.config";
 import { useAccount, useSwitchChain, useChainId, useConnect } from 'wagmi';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { WalletConnectModal } from "./wallet-connect-modal";
 
 // Network types and configuration
 type NetworkID = 42220 | 44787; // Celo Mainnet and Alfajores Testnet IDs
@@ -262,7 +263,12 @@ export function WalletConnectButton({
           Connect Wallet
         </Button>
 
-        <WalletModal
+     {/*    <WalletModal
+          isOpen={isModalOpen}
+          onOpenChange={setIsModalOpen}
+          onConnectSuccess={() => setIsModalOpen(false)}
+        /> */}
+        <WalletConnectModal
           isOpen={isModalOpen}
           onOpenChange={setIsModalOpen}
           onConnectSuccess={() => setIsModalOpen(false)}
