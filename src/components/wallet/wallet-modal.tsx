@@ -35,8 +35,8 @@ const cleanUrl = (url: string, keepProtocol: boolean = false): string => {
 // Get the current host and protocol for deep linking
 const getDappUrl = () => {
   if (typeof window === 'undefined') return '';
-  const clean = cleanUrl(window.location.href, true);
-  return encodeURIComponent(clean);
+  const clean = cleanUrl(window.location.origin, true);
+  return clean;
 };
 
 interface WalletModalProps {
