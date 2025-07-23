@@ -52,6 +52,6 @@ export const CHAIN_IDS = {
 } as const;
 
 export const DEFAULT_CHAIN = celoTestnet; // Default to testnet for development
-
+export const SUPPORTED_CHAINS = [celoMainnet, celoTestnet];
 
 export default config;

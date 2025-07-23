@@ -1,24 +1,18 @@
 import { CHAIN_IDS } from '@/lib/wagmi.config';
+import { NetworkInfo } from '@/types/network';
 
-// Define network ID type for type safety
-export type NetworkID = 42220 | 44787; // Celo Mainnet and Alfajores Testnet IDs
-
-export type Network = {
-  id: NetworkID;
-  name: string;
-  isTestnet: boolean;
-};
-
-export const NETWORK_INFO: Record<number, Network> = {
+export const NETWORK_INFO: Record<number, NetworkInfo> = {
   [CHAIN_IDS.CELO_MAINNET]: {
     id: CHAIN_IDS.CELO_MAINNET,
     name: 'Celo Mainnet',
-    isTestnet: false,
+    isTestnet: false, 
+    icon: 'celo',
   },
   [CHAIN_IDS.CELO_ALFAJORES]: {
     id: CHAIN_IDS.CELO_ALFAJORES,
     name: 'Celo Alfajores',
     isTestnet: true,
+    icon: 'celo',
   },
 };
 
