@@ -9,8 +9,11 @@ import {
 import { walletConnect } from 'wagmi/connectors';
 import { useDisconnect as useCustomDisconnect } from "@/hooks/useDisconnect";
 import { isMobile } from "react-device-detect";
+import { toast } from "sonner";
 
 // Type for wallet account
+export type ConnectionMethod = 'injected' | 'walletconnect' | 'browser' | null;
+
 export interface WalletAccount {
   address: string;
   connector: {
@@ -50,9 +53,13 @@ export interface WalletContextType {
   account: WalletAccount | null;
   isConnected: boolean;
   connect: (connectorType?: 'injected' | 'walletConnect') => Promise<ConnectResult | void>;
+  handleConnect: (method: ConnectionMethod) => Promise<void>;
   disconnect: () => Promise<void>;
   isConnecting: boolean;
   error: Error | null;
+  connectionError: string | null;
+  isMobileBrowser: boolean;
+  isMetaMaskInstalled: boolean;
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
@@ -61,6 +68,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [account, setAccount] = useState<WalletAccount | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [isMobileBrowser, setIsMobileBrowser] = useState(false);
   
   // Get wagmi hooks
   const { address, isConnected, chain } = useAccount();
@@ -91,6 +100,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const isMetaMaskAvailable = typeof window !== 'undefined' && 
     typeof (window as any).ethereum !== 'undefined' && 
     (window as any).ethereum.isMetaMask;
+    
+  // Set mobile browser state on mount
+  useEffect(() => {
+    setIsMobileBrowser(isMobile && !(window as any).ethereum?.isMetaMask);
+  }, []);
     
   // Check if we should redirect to MetaMask Mobile
   const shouldRedirectToMetaMask = isMobile && !isMetaMaskAvailable;
@@ -211,7 +225,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Connect wallet function with simplified type signature
-  const connect = useCallback(async (connectorType: 'injected' | 'walletConnect' = 'injected'): Promise<ConnectResult | void> => {
+  const connect = useCallback(async (connectorType?: 'injected' | 'walletConnect'): Promise<ConnectResult | void> => {
     setIsConnecting(true);
     setError(null);
     
@@ -365,14 +379,90 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, [unifiedDisconnect, wagmiDisconnect, setError, setAccount]);
   
+  // Unified connection handler for all connection methods
+  const handleConnect = async (method: ConnectionMethod) => {
+    if (!method) return;
+    
+    setIsConnecting(true);
+    setConnectionError(null);
+
+    try {
+      if (method === 'injected') {
+        await connect('injected');
+      } else if (method === 'walletconnect') {
+        await connect('walletConnect');
+      } else if (method === 'browser') {
+        // For mobile browser flow, use WalletConnect with MetaMask's universal link
+        const wcUri = `wc:${Date.now()}-1@1?bridge=https%3A%2F%2Fbridge.walletconnect.org&key=91303dedf64285cbbaf9120f6e9d160a5c8aa2deb250274feb16c1ea3e589fe7`;
+        
+        // Create the deep link with WalletConnect URI
+        const deepLink = `https://metamask.app.link/wc?uri=${encodeURIComponent(wcUri)}`;
+        
+        // Store connection state
+        const connectionId = `conn_${Date.now()}`;
+        sessionStorage.setItem('connectionId', connectionId);
+        sessionStorage.setItem('connectionMethod', 'walletConnect');
+        
+        // Open the deep link
+        window.location.href = deepLink;
+        
+        // Set up a listener for when the app returns to the foreground
+        const handleVisibilityChange = () => {
+          if (document.visibilityState === 'visible') {
+            const storedConnectionId = sessionStorage.getItem('connectionId');
+            if (storedConnectionId === connectionId) {
+              // Clear the stored ID
+              sessionStorage.removeItem('connectionId');
+              
+              // Try to establish the connection
+              setTimeout(async () => {
+                try {
+                  await connect('walletConnect');
+                } catch (err) {
+                  console.error('Failed to connect after redirect:', err);
+                  setConnectionError('Failed to connect after redirect. Please try again.');
+                } finally {
+                  setIsConnecting(false);
+                }
+              }, 2000); // Give some time for the connection to establish
+            }
+            
+            // Clean up
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+          }
+        };
+        
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        
+        // Cleanup after 30 seconds
+        setTimeout(() => {
+          document.removeEventListener('visibilitychange', handleVisibilityChange);
+        }, 30000);
+        
+        return;
+      }
+    } catch (err: any) {
+      console.error('Connection error:', err);
+      const errorMessage = err.message || 'Failed to connect wallet';
+      setConnectionError(errorMessage);
+      throw err;
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
   // Provide the context value
   const contextValue: WalletContextType = {
     account,
     isConnected: !!account?.isConnected,
     connect,
+    handleConnect,
     disconnect,
     isConnecting,
-    error
+    error,
+    connectionError,
+    isMobileBrowser,
+    isMetaMaskInstalled: isMetaMaskAvailable
   };
   
   return (

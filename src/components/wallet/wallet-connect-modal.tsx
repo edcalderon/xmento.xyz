@@ -8,136 +8,38 @@ import { toast } from "sonner";
 import { useWallet } from "@/contexts/WalletContext";
 import { isMobile } from "react-device-detect";
 
-// Clean URL by ensuring it doesn't have duplicate protocols
-const cleanUrl = (url: string, keepProtocol: boolean = false): string => {
-  if (!url) return '';
-  
-  if (keepProtocol) {
-    return url.replace(/^(https?:\/\/)(.*)/, (_, protocol, rest) => {
-      return `${protocol}${rest.replace(/^\/+/, '')}`;
-    });
-  }
-  
-  return url
-    .replace(/^https?:\/\//, '')
-    .replace(/^\/\//, '')
-    .replace(/^\/*/, '')
-    .split('?')[0]
-    .split('#')[0];
-};
-
-// Get the current host and protocol for deep linking
-const getDappUrl = () => {
-  if (typeof window === 'undefined') return '';
-  return cleanUrl(window.location.origin, true);
-};
-
 interface WalletModalProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onConnectSuccess?: () => void;
 }
 
-type ConnectionMethod = 'injected' | 'walletconnect' | 'browser' | null;
-
-export function WalletConnectModal({ isOpen, onOpenChange, onConnectSuccess }: WalletModalProps) {
-  const { connect } = useWallet();
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [connectionError, setConnectionError] = useState<string | null>(null);
-  const [connectionMethod, setConnectionMethod] = useState<ConnectionMethod>(null);
-  const [isMobileBrowser, setIsMobileBrowser] = useState(false);
-
-  // Check if MetaMask is installed
-  const isMetaMaskInstalled = typeof window !== 'undefined' &&
-    typeof (window as any).ethereum !== 'undefined' &&
-    (window as any).ethereum.isMetaMask;
-
-  useEffect(() => {
-    setIsMobileBrowser(isMobile && !(window as any).ethereum?.isMetaMask);
-  }, []);
+export function WalletConnectModal({ isOpen, onOpenChange, onConnectSuccess }: WalletModalProps): JSX.Element {
+  const { 
+    handleConnect, 
+    isConnecting, 
+    connectionError, 
+    isMobileBrowser,
+    isMetaMaskInstalled 
+  } = useWallet();
+  const [connectionMethod, setConnectionMethod] = useState<'injected' | 'walletconnect' | 'browser' | null>(null);
 
   useEffect(() => {
     if (!isOpen) {
-      setConnectionError(null);
       setConnectionMethod(null);
     }
   }, [isOpen]);
 
-  const handleConnect = async (method: ConnectionMethod) => {
-    if (!method) return;
-    
-    setIsConnecting(true);
-    setConnectionError(null);
-
+  const handleConnection = async (method: 'injected' | 'walletconnect' | 'browser') => {
     try {
-      if (method === 'injected') {
-        await connect('injected');
-      } else if (method === 'walletconnect') {
-        await connect('walletConnect');
-      } else if (method === 'browser') {
-        // For mobile browser flow, we'll use WalletConnect with MetaMask's universal link
-        const wcUri = `wc:${Date.now()}-1@1?bridge=https%3A%2F%2Fbridge.walletconnect.org&key=91303dedf64285cbbaf9120f6e9d160a5c8aa2deb250274feb16c1ea3e589fe7`;
-        
-        // Create the deep link with WalletConnect URI
-        const deepLink = `https://metamask.app.link/wc?uri=${encodeURIComponent(wcUri)}`;
-        
-        // Store connection state
-        const connectionId = `conn_${Date.now()}`;
-        sessionStorage.setItem('connectionId', connectionId);
-        sessionStorage.setItem('connectionMethod', 'walletConnect');
-        
-        // Open the deep link
-        window.location.href = deepLink;
-        
-        // Set up a listener for when the app returns to the foreground
-        const handleVisibilityChange = () => {
-          if (document.visibilityState === 'visible') {
-            const storedConnectionId = sessionStorage.getItem('connectionId');
-            if (storedConnectionId === connectionId) {
-              // Clear the stored ID
-              sessionStorage.removeItem('connectionId');
-              
-              // Try to establish the connection
-              setTimeout(async () => {
-                try {
-                  await connect('walletConnect');
-                  onOpenChange(false);
-                  onConnectSuccess?.();
-                } catch (err) {
-                  console.error('Failed to connect after redirect:', err);
-                  toast.error('Please try connecting again.');
-                } finally {
-                  setIsConnecting(false);
-                }
-              }, 2000); // Give some time for the connection to establish
-            }
-            
-            // Clean up
-            document.removeEventListener('visibilitychange', handleVisibilityChange);
-          }
-        };
-        
-        document.addEventListener('visibilitychange', handleVisibilityChange);
-        
-        // Cleanup after 30 seconds
-        setTimeout(() => {
-          document.removeEventListener('visibilitychange', handleVisibilityChange);
-        }, 30000);
-        
-        toast.info('Opening MetaMask...');
-        return;
-      }
-      
+      setConnectionMethod(method);
+      await handleConnect(method === 'walletconnect' ? 'walletconnect' : method === 'injected' ? 'injected' : 'browser');
       onOpenChange(false);
-      toast.success("Wallet connected successfully");
       onConnectSuccess?.();
-    } catch (err: any) {
+      toast.success("Wallet connected successfully");
+    } catch (err) {
       console.error('Connection error:', err);
-      const errorMessage = err.message || 'Failed to connect wallet';
-      setConnectionError(errorMessage);
-      toast.error(errorMessage);
-    } finally {
-      setIsConnecting(false);
+      // Error is already handled in the context
     }
   };
 
@@ -157,7 +59,7 @@ export function WalletConnectModal({ isOpen, onOpenChange, onConnectSuccess }: W
           {connectionMethod === 'injected' && (
             <Button
               className="w-full justify-between"
-              onClick={() => handleConnect('injected')}
+              onClick={() => handleConnection('injected')}
               disabled={isConnecting}
             >
               <span>MetaMask</span>
@@ -168,7 +70,7 @@ export function WalletConnectModal({ isOpen, onOpenChange, onConnectSuccess }: W
           {connectionMethod === 'walletconnect' && (
             <Button
               className="w-full justify-between"
-              onClick={() => handleConnect('walletconnect')}
+              onClick={() => handleConnection('walletconnect')}
               disabled={isConnecting}
             >
               <span>WalletConnect</span>
@@ -179,7 +81,7 @@ export function WalletConnectModal({ isOpen, onOpenChange, onConnectSuccess }: W
           {connectionMethod === 'browser' && (
             <Button
               className="w-full justify-between"
-              onClick={() => handleConnect('browser')}
+              onClick={() => handleConnection('browser')}
               disabled={isConnecting}
             >
               <span>Open in MetaMask Browser</span>
