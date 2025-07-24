@@ -67,6 +67,7 @@ export function useUserVaults(): UseUserVaultsReturn {
     }
 
     const isInitialLoad = !initialLoadComplete;
+    // Don't skip if it's a forced refresh, initial load, or we don't have any vaults yet
     const shouldSkip = !force && vaultsRef.current.length > 0 && !isInitialLoad && !isBackground;
 
     if (shouldSkip) {
@@ -82,8 +83,10 @@ export function useUserVaults(): UseUserVaultsReturn {
       if (isInitialLoad) {
         setIsInitialLoading(true);
       } else if (isBackground) {
+        // For background refreshes, we don't show a loading state
         setIsBackgroundRefreshing(true);
       } else {
+        // Only show refreshing state for user-initiated refreshes
         setIsRefreshing(true);
       }
 

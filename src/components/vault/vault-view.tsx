@@ -80,8 +80,11 @@ export function VaultView({
     ? `${formatEther(tokenBalance)} ${selectedToken}` 
     : '0.00';
     
-  // Show loading state only on initial load or when there's no data yet
-  const isLoading = !vaultAddress || (isBalanceFetching && !tokenBalance) || (isTVLFetching && tvl === undefined);
+  // Track if we have initial data
+  const hasInitialData = tokenBalance !== undefined && tvl !== undefined;
+  
+  // Only show loading state when we don't have data and are still fetching
+  const isLoading = (!hasInitialData && (isBalanceFetching || isTVLFetching));
 
   // Handle deposit
   const handleDeposit = (e: React.FormEvent) => {

@@ -27,8 +27,9 @@ export function VaultStatus({ vaultAddress, onVaultSelect }: VaultStatusProps) {
   const { chain } = useAccount();
   const chainId = chain?.id || DEFAULT_CHAIN;
   
-  // Show loading state only for initial load or user-initiated refresh
-  const isLoading = isInitialLoading || isRefreshing;
+  // Only show loading state for initial load or explicit user refresh
+  // Don't show loading state during background refreshes or vault switching
+  const isLoading = isInitialLoading || (isRefreshing && !isClient);
   
   // Set client flag on mount
   useEffect(() => {
