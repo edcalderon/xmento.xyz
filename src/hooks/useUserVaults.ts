@@ -9,6 +9,7 @@ type UseUserVaultsReturn = {
   vaults: `0x${string}`[];
   isInitialLoading: boolean;
   isRefreshing: boolean;
+  setIsRefreshing: (value: boolean) => void;
   lastFetched: number | null;
   refetch: () => Promise<void>;
 };
@@ -227,7 +228,8 @@ export function useUserVaults(): UseUserVaultsReturn {
   return useMemo(() => ({
     vaults,
     isInitialLoading,
-    isRefreshing: showRefreshing, // Only true for user-initiated refreshes
+    isRefreshing: showRefreshing, 
+    setIsRefreshing,
     lastFetched,
     refetch,
   }), [vaults, isInitialLoading, showRefreshing, lastFetched, refetch]);

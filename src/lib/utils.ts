@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { Chain } from "viem";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -25,3 +26,10 @@ export const shortenAddress = (address: string) => {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 };
 
+
+export const handleViewOnExplorer = (vaultAddress: string, chain?: Chain) => {
+  if (typeof window === 'undefined') return;
+
+  const explorerUrl = chain?.blockExplorers?.default?.url || 'https://alfajores.celoscan.io';
+  window.open(`${explorerUrl}/address/${vaultAddress}`, '_blank', 'noopener,noreferrer');
+};  

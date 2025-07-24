@@ -655,7 +655,7 @@ export function VaultInteraction(): React.JSX.Element {
         </TabsList>
 
         <TabsContent value="vault" className="space-y-6">
-          {VaultSelector}
+          {MemoizedVaultSelector}
           {vaultAddress && (
             <VaultView
               key={`vault-${vaultAddress}`}
@@ -665,6 +665,7 @@ export function VaultInteraction(): React.JSX.Element {
               selectedToken={selectedToken}
               onTokenChange={handleTokenChange}
               isWrongNetwork={isWrongNetwork}
+              isRefreshing={isRefreshing}
             />
           )}
         </TabsContent>

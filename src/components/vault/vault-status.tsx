@@ -4,12 +4,14 @@ import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { WalletConnectButton } from "@/components/wallet/wallet-connect-button";
 import { Copy, ExternalLink, Loader2, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { useUserVaults } from '@/hooks/useUserVaults';
 import { useAccount } from 'wagmi';
 import { useToast } from "@/components/ui/use-toast";
 import { CONTRACT_ADDRESSES, DEFAULT_CHAIN } from "@/config/contracts";
 import { XmentoVaultFactoryABI as factoryABI } from './XmentoVaultFactoryABI';
+import { handleViewOnExplorer } from '@/lib/utils';
 
 interface VaultStatusProps {
   vaultAddress?: `0x${string}` | null;
@@ -33,9 +35,17 @@ export function VaultStatus({ vaultAddress, onVaultSelect }: VaultStatusProps) {
     setIsClient(true);
   }, []);
 
-  const handleRefreshVaults = () => {
-    // This will trigger a user-initiated refresh with isRefreshing=true
-    refetch();
+  const handleRefreshVaults = async () => {
+    try {
+      await refetch();
+    } catch (error) {
+      console.error('Error refreshing vaults:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to refresh vaults. Please try again.',
+        variant: 'destructive',
+      });
+    }
   };
 
   // Handle vault creation
@@ -167,14 +177,6 @@ export function VaultStatus({ vaultAddress, onVaultSelect }: VaultStatusProps) {
     });
   };
 
-  // Handle view on explorer
-  const handleViewOnExplorer = (vaultAddress: string) => {
-    if (typeof window === 'undefined') return;
-
-    const explorerUrl = chain?.blockExplorers?.default?.url || 'https://alfajores.celoscan.io';
-    window.open(`${explorerUrl}/address/${vaultAddress}`, '_blank', 'noopener,noreferrer');
-  };
-
   // Loading state - only show spinner during initial load
   if (isLoading && vaults.length === 0) {
     return (
@@ -187,20 +189,7 @@ export function VaultStatus({ vaultAddress, onVaultSelect }: VaultStatusProps) {
     );
   }
 
-  // No wallet connected
-  if (!address) {
-    return (
-      <div className="p-4 border rounded-lg bg-muted/50">
-        <p className="text-sm text-muted-foreground">
-          Connect your wallet to view or create vaults
-        </p>
-        <div className="mt-4">
-          <WalletConnectButton variant="default" />
-        </div>
-      </div>
-    );
-  }
-
+  
   // No vaults found
   if (vaults.length === 0) {
     return (
@@ -233,24 +222,27 @@ export function VaultStatus({ vaultAddress, onVaultSelect }: VaultStatusProps) {
   return (
     <div className="space-y-4">
       <TooltipProvider>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-2">
           <h3 className="text-lg font-medium">Your Vaults</h3>
-          <div className="flex items-center space-x-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={() => handleRefreshVaults()}
-                  disabled={isRefreshing}
-                  className="p-1.5 rounded-md hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center space-x-2"
-                  aria-label="Refresh vaults"
-                >
-                  {isRefreshing ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Refreshing...</> : <><RefreshCw className="h-4 w-4 mr-2" /> Refresh</>}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>Refresh vault list</TooltipContent>
-            </Tooltip>
-
-          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefreshVaults}
+                disabled={isRefreshing}
+                className="h-8 w-8 p-0"
+              >
+                {isRefreshing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                <span className="sr-only">Refresh</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Refresh vault list</TooltipContent>
+          </Tooltip>
         </div>
 
         <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
@@ -266,8 +258,8 @@ export function VaultStatus({ vaultAddress, onVaultSelect }: VaultStatusProps) {
                   }`}
               >
 
-                <div className="flex items-center space-x-2">
-                  <div className="w-2 h-2 rounded-full bg-green-500" />
+                <div className="flex items-center space-x-3">
+                  <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span className="font-mono text-sm cursor-default">
@@ -275,17 +267,21 @@ export function VaultStatus({ vaultAddress, onVaultSelect }: VaultStatusProps) {
                       </span>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>{vault}</p>
+                      <p className="font-mono text-xs">{vault}</p>
                     </TooltipContent>
                   </Tooltip>
                 </div>
-                <div className="flex space-x-2">
+                <div className="flex space-x-1">
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleCopyAddress(vault);
+                          navigator.clipboard.writeText(vault);
+                          toast({
+                            title: 'Copied!',
+                            description: 'Vault address copied to clipboard',
+                          });
                         }}
                         className="p-1.5 rounded-md hover:bg-muted"
                         aria-label="Copy address"
@@ -293,14 +289,14 @@ export function VaultStatus({ vaultAddress, onVaultSelect }: VaultStatusProps) {
                         <Copy className="w-4 h-4" />
                       </button>
                     </TooltipTrigger>
-                    <TooltipContent>Copy Address</TooltipContent>
+                    <TooltipContent>Copy address</TooltipContent>
                   </Tooltip>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleViewOnExplorer(vault);
+                          handleViewOnExplorer(vault, chain);
                         }}
                         className="p-1.5 rounded-md hover:bg-muted"
                         aria-label="View on explorer"
@@ -308,7 +304,7 @@ export function VaultStatus({ vaultAddress, onVaultSelect }: VaultStatusProps) {
                         <ExternalLink className="w-4 h-4" />
                       </button>
                     </TooltipTrigger>
-                    <TooltipContent>View on Explorer</TooltipContent>
+                    <TooltipContent>View on explorer</TooltipContent>
                   </Tooltip>
                 </div>
 

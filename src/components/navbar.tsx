@@ -14,7 +14,7 @@ export function Navbar() {
             <a className="flex items-center space-x-2" href="/">
               <div className="flex items-baseline space-x-2">
                 <span className="font-bold text-xl whitespace-nowrap">Mento FX</span>
-                <span className="text-xs text-muted-foreground font-mono hidden sm:inline">v{version}</span>
+                <span className="text-xs text-muted-foreground font-mono inline">v{version}</span>
               </div>
             </a>
           </div>

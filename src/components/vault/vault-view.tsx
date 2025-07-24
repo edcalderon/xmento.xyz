@@ -20,6 +20,7 @@ interface VaultViewProps {
   selectedToken: TokenSymbol;
   onTokenChange: (token: TokenSymbol) => void;
   isWrongNetwork: boolean;
+  isRefreshing: boolean;
 }
 
 export function VaultView({
@@ -28,7 +29,8 @@ export function VaultView({
   chainId,
   selectedToken,
   onTokenChange,
-  isWrongNetwork
+  isWrongNetwork,
+  isRefreshing,
 }: VaultViewProps) {
   const { address } = useAccount();
   const { toast } = useToast();
