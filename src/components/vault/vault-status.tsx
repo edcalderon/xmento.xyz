@@ -12,13 +12,15 @@ import { useToast } from "@/components/ui/use-toast";
 import { CONTRACT_ADDRESSES, DEFAULT_CHAIN } from "@/config/contracts";
 import { XmentoVaultFactoryABI as factoryABI } from './XmentoVaultFactoryABI';
 import { handleViewOnExplorer } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 interface VaultStatusProps {
   vaultAddress?: `0x${string}` | null;
   onVaultSelect?: (vault: `0x${string}`) => void;
+  isMobileBrowser?: boolean;
 }
 
-export function VaultStatus({ vaultAddress, onVaultSelect }: VaultStatusProps) {
+export function VaultStatus({ vaultAddress, onVaultSelect, isMobileBrowser = false }: VaultStatusProps) {
   const { address } = useAccount();
   const { vaults, isInitialLoading, isRefreshing, lastFetched, refetch } = useUserVaults();
   const [isCreatingVault, setIsCreatingVault] = useState(false);
@@ -26,6 +28,10 @@ export function VaultStatus({ vaultAddress, onVaultSelect }: VaultStatusProps) {
   const { toast } = useToast();
   const { chain } = useAccount();
   const chainId = chain?.id || DEFAULT_CHAIN;
+  
+  // Ensure we have isMobileBrowser value
+  const isMobileBrowserState = useIsMobile();
+  const finalIsMobileBrowser = isMobileBrowser || isMobileBrowserState;
   
   // Only show loading state for initial load or explicit user refresh
   // Don't show loading state during background refreshes or vault switching
@@ -157,10 +163,11 @@ export function VaultStatus({ vaultAddress, onVaultSelect }: VaultStatusProps) {
 
     refetch();
 
-    // Set up polling
-    const interval = setInterval(refetch, 30000); // Check every 30 seconds
+    // Set up polling with mobile-specific interval
+    const pollingInterval = finalIsMobileBrowser ? 15000 : 30000; // 15 seconds on mobile, 30 seconds on desktop
+    const interval = setInterval(refetch, pollingInterval);
     return () => clearInterval(interval);
-  }, [refetch, isClient]);
+  }, [refetch, isClient, isMobileBrowser]);
 
   // Set isClient on mount
   useEffect(() => {
@@ -178,19 +185,26 @@ export function VaultStatus({ vaultAddress, onVaultSelect }: VaultStatusProps) {
     });
   };
 
-  // Loading state - only show spinner during initial load
-  if (isLoading && vaults.length === 0) {
+  // Loading state - show spinner during initial load and polling
+  if (isLoading || isRefreshing) {
     return (
       <div className="p-4 border rounded-lg bg-muted/50">
-        <div className="flex items-center justify-center p-4">
+        <div className="flex flex-col items-center justify-center gap-2 p-4">
           <Loader2 className="h-5 w-5 animate-spin" />
-          <span className="ml-2 text-sm text-muted-foreground">Loading vaults...</span>
+          <span className="text-sm text-muted-foreground">
+            {isLoading && vaults.length === 0 ? 'Loading vaults...' : 'Refreshing vaults...'}
+          </span>
+          {isRefreshing && (
+            <span className="text-xs text-muted-foreground">
+              Last updated {lastFetched ? new Date(lastFetched).toLocaleTimeString() : 'never'}
+            </span>
+          )}
         </div>
       </div>
     );
+  
   }
 
-  
   // No vaults found
   if (vaults.length === 0) {
     return (

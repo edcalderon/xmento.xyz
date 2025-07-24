@@ -132,15 +132,31 @@ export const useWalletConnection = (): UseWalletConnectionReturn => {
           await connect(method);
           return;
         } catch (err) {
-          console.warn('Direct MetaMask connection failed, falling back to deeplink', err);
-        }
-      }
+          console.warn('Direct MetaMask connection failed, attempting fallback...', err);
+          // Wait a bit before fallback to allow user to handle initial error
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          // Try deeplink fallback
+          const deeplink = `https://metamask.app.link/dapp/${window.location.host}${window.location.pathname}`;
+          window.open(deeplink, '_blank');
+          
+          // Set up retry mechanism
+          const retryInterval = setInterval(async () => {
+            if (window.ethereum?.isMetaMask) {
+              try {
+                await connect(method);
+                clearInterval(retryInterval);
+                return;
+              } catch (retryErr) {
+                // Keep retrying until connection is established
+                console.log('Retrying connection...');
+              }
+            }
+          }, 5000); // Retry every 5 seconds
 
-      // For mobile browsers, try to open MetaMask app directly
-      if (isMobileBrowser && method === 'injected') {
-        const deeplink = `https://metamask.app.link/dapp/${window.location.host}${window.location.pathname}`;
-        window.open(deeplink, '_blank');
-        // Continue with connection attempt as the page will reload in MetaMask browser
+          // Clear interval after max retries
+          setTimeout(() => clearInterval(retryInterval), 30000); // 30 seconds max retry time
+        }
       }
 
       await connect(method);

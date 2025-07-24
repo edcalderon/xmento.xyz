@@ -286,34 +286,18 @@ export function VaultInteraction(): React.JSX.Element {
           onSuccess: (hash) => {
             transactionHash = hash;
             // Dismiss the loading toast
-            loadingToast.dismiss();
-            // Loading state is now handled by the useUserVaults hook
-
             // Show a new toast for the transaction without action
             toast({
               title: 'Transaction Sent',
               description: 'Waiting for confirmation...',
             });
-
-            // Show explorer link in a new tab
-            showExplorerLink(hash, 'tx');
             
             // Refresh the vault list after a short delay to ensure the blockchain has updated
             setTimeout(() => {
               refetchVaults().catch(error => {
                 console.error('Error refreshing vault list:', error);
               });
-            }, 2000);
-            
-            // Show success message after a short delay to allow for the transaction to be mined
-            setTimeout(() => {
-              toast({
-                title: 'Vault Created',
-                description: 'Your vault has been successfully created!',
-                variant: 'default',
-              });
-            }, 3000);
-            
+            }, 2000);            
             resolve(hash);
           },
           onError: (error: Error) => {
@@ -458,7 +442,7 @@ export function VaultInteraction(): React.JSX.Element {
             onClick={() => showExplorerLink(newVaultAddress, 'address')}
             className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
           >
-            View Vault
+            Explore
           </button>
         ),
         duration: 10000, // Show for 10 seconds
@@ -536,9 +520,6 @@ export function VaultInteraction(): React.JSX.Element {
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center space-x-2">
           <h3 className="text-lg font-medium">Your Vaults</h3>
-          {isCreatingVault && (
-           <><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> Processing...</>
-          )}
         </div>
         <button
           onClick={handleCreateVault}
