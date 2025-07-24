@@ -1,6 +1,7 @@
 import { useCallback, useState, useEffect } from 'react';
 import { useAccount, useConnect, useDisconnect } from 'wagmi';
 import { useToast } from '@/components/ui/use-toast';
+import { useIsMobile } from './useIsMobile';
 
 export type ConnectionMethod = 'injected' | 'walletconnect' | 'metaMask' | null;
 
@@ -22,19 +23,11 @@ export const useWalletConnection = (): UseWalletConnectionReturn => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
-  const [isMobileBrowser, setIsMobileBrowser] = useState(false);
+  const isMobileBrowser = useIsMobile();
   
   const { connectAsync, connectors } = useConnect();
   const { disconnect: wagmiDisconnect } = useDisconnect();
   const { address, isConnected } = useAccount();
-
-  // Check if mobile browser on mount
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const userAgent = window.navigator.userAgent;
-      setIsMobileBrowser(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent));
-    }
-  }, []);
 
   // Check if any injected wallet is available
   const hasInjectedWallet = typeof window !== 'undefined' && (

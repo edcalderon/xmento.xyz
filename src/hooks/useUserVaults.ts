@@ -60,15 +60,15 @@ export function useUserVaults(): UseUserVaultsReturn {
   }, []);
 
   const fetchVaults = useCallback(async (force = false, isBackground = false) => {
-    // Skip if already in progress, unless it's a forced refresh
+    // Skip if already in progress, unless it's a forced refresh or initial load
     if ((isInitialLoading || isRefreshing || isBackgroundRefreshing) && !force) {
       console.log('Skipping fetch - already in progress');
       return;
     }
 
     const isInitialLoad = !initialLoadComplete;
-    // Don't skip if it's a forced refresh, initial load, or we don't have any vaults yet
-    const shouldSkip = !force && vaultsRef.current.length > 0 && !isInitialLoad && !isBackground;
+    // Always fetch on initial load, otherwise skip if we have data and it's not a forced refresh
+    const shouldSkip = !force && vaultsRef.current.length > 0 && !isInitialLoad;
 
     if (shouldSkip) {
       console.log('Skipping fetch - already have data and this is not a forced refresh');
@@ -134,7 +134,8 @@ export function useUserVaults(): UseUserVaultsReturn {
 
         console.log(`[useUserVaults] Found ${validVaults.length} valid vault(s):`, validVaults);
 
-        // Only update if the vaults have actually changed
+        // Always update state when we have vaults, even if they appear unchanged
+        // This ensures we have the latest on-chain state
         setVaults(prevVaults => {
           // Compare lengths first for quick check
           if (prevVaults.length !== validVaults.length) {
@@ -147,6 +148,12 @@ export function useUserVaults(): UseUserVaultsReturn {
 
           if (hasChanges) {
             console.log('[useUserVaults] Vaults changed, updating state');
+            return validVaults;
+          }
+
+          // Always update state when we have vaults to ensure we have the latest on-chain state
+          if (validVaults.length > 0) {
+            console.log('[useUserVaults] Updating state with latest on-chain data');
             return validVaults;
           }
 
@@ -200,18 +207,16 @@ export function useUserVaults(): UseUserVaultsReturn {
     let interval: NodeJS.Timeout;
     
     const poll = () => {
-      // Only poll if we have vaults to refresh
-      if (vaultsRef.current.length > 0) {
-        console.log('[useUserVaults] Background refresh polling...');
-        fetchVaults(true, true); // Force refresh with isBackground=true
-      }
+      // Always poll to check for on-chain changes
+      console.log('[useUserVaults] Background refresh polling...');
+      fetchVaults(true, true); // Force refresh with isBackground=true
     };
     
     // Set up the interval
-    interval = setInterval(poll, 30000); // Poll every 30 seconds
+    interval = setInterval(poll, 15000); // Poll every 15 seconds for better chain state detection
     
     // Initial poll after a short delay
-    const initialPollTimer = setTimeout(poll, 10000);
+    const initialPollTimer = setTimeout(poll, 5000); // Initial poll after 5 seconds
     
     // Cleanup function
     return () => {
