@@ -4,7 +4,6 @@ import { VaultInteraction } from '@/components/vault/vault-interaction';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function Home() {
-  const FACTORY_ADDRESS = process.env.NEXT_PUBLIC_FACTORY_ADDRESS as `0x${string}`;
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
@@ -24,7 +23,7 @@ export default function Home() {
         {/* Main Content */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            <VaultInteraction factoryAddress={FACTORY_ADDRESS} />
+            <VaultInteraction />
           </div>
           
           <div className="space-y-6">

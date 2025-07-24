@@ -1,26 +1,27 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import React from 'react';
-import { useAccount, useReadContract, useWriteContract, usePublicClient, useDisconnect } from 'wagmi';
+import { useAccount, useWriteContract, usePublicClient, useDisconnect } from 'wagmi';
 import { useWallet } from '@/providers/wallet-provider';
 import { isAddress } from 'viem';
 import { XmentoVaultFactoryABI } from './XmentoVaultFactoryABI';
 import { useToast } from '@/components/ui/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { VaultView } from './VaultView';
+import { VaultView } from './vault-view';
 import { AdminView } from './AdminView';
 import { Card, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle, Wallet } from 'lucide-react';
+import { AlertCircle, Wallet, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { VaultStatus } from './vault-status';
+import { useUserVaults } from '@/hooks/useUserVaults';
+import { VAULT_CREATED_TOPIC } from '@/config/contracts';
 
 import {
   TokenSymbol,
   CONTRACT_ADDRESSES,
   DEFAULT_CHAIN,
-  VaultInteractionProps
 } from '@/config/contracts';
 
 type BrowserWindow = Window & typeof globalThis & {
@@ -34,21 +35,37 @@ type BrowserWindow = Window & typeof globalThis & {
 
 declare const window: BrowserWindow | undefined;
 
-export function VaultInteraction({ factoryAddress }: VaultInteractionProps): React.JSX.Element {
+export function VaultInteraction(): React.JSX.Element {
   const [selectedToken, setSelectedToken] = useState<TokenSymbol>('cUSD');
   const [vaultAddress, setVaultAddress] = useState<`0x${string}` | null>(null);
   const [isWrongNetwork, setIsWrongNetwork] = useState<boolean>(false);
   const [isManager, setIsManager] = useState<boolean>(false);
-  const [userVaults, setUserVaults] = useState<`0x${string}`[]>([]);
+  const [isCreatingVault, setIsCreatingVault] = useState<boolean>(false);
   const { address, isConnected, chain } = useAccount();
   const chainId = chain?.id || DEFAULT_CHAIN;
   const { toast } = useToast();
   const publicClient = usePublicClient();
-
+  
+  // Track initial load state
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  
+  // Use the useUserVaults hook to manage vaults state
+  const { 
+    vaults: userVaults, 
+    isInitialLoading,
+    isRefreshing,
+    refetch: refetchVaults 
+  } = useUserVaults();
+  
+  // Track when initial load is complete
+  useEffect(() => {
+    if (!isInitialLoading && userVaults.length > 0) {
+      setInitialLoadComplete(true);
+    }
+  }, [isInitialLoading, userVaults.length]);
+  
   const currentNetworkAddresses = {
-    ...(CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES] || CONTRACT_ADDRESSES[DEFAULT_CHAIN]),
-    // Override factory address if provided via props
-    ...(factoryAddress ? { factory: factoryAddress } : {}),
+    ...(CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES] || CONTRACT_ADDRESSES[DEFAULT_CHAIN])
   };
 
   const VAULT_FACTORY_ADDRESS = currentNetworkAddresses.factory;
@@ -56,6 +73,7 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): Rea
 
   useEffect(() => {
     setIsManager(address?.toLowerCase() === process.env.NEXT_PUBLIC_MANAGER_ADDRESS?.toLowerCase());
+    // Remove any direct calls to setIsLoadingVaults since we're using isRefreshingVaults now
   }, [address]);
 
   useEffect(() => {
@@ -73,23 +91,29 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): Rea
     }
   }, [chain, toast]);
 
+  // Helper function to validate Ethereum addresses
   const isValidEthAddress = useCallback((value: unknown): value is `0x${string}` => {
     return typeof value === 'string' && isAddress(value);
   }, []);
-  const filterValidAddresses = useCallback((addresses: unknown[]): `0x${string}`[] => {
-    return addresses.filter(isValidEthAddress);
-  }, [isValidEthAddress]);
 
-  const clearVaultData = useCallback((currentAddress: string) => {
+  // Clear vault data for a specific address
+  const clearVaultData = useCallback((address: string) => {
     if (typeof window === 'undefined') return;
-
+    
     try {
-      const storageKey = `vaults_${chainId}_${currentAddress.toLowerCase()}`;
-      window.localStorage.removeItem(storageKey);
+      // Clear vault-related data from localStorage
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith(`vault_${address.toLowerCase()}`)) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(key => localStorage.removeItem(key));
     } catch (error) {
       console.error('Error clearing vault data:', error);
     }
-  }, [chainId]);
+  }, []);
 
   const { disconnect: disconnectWallet } = useWallet();
   const { disconnect: disconnectWagmi } = useDisconnect();
@@ -99,11 +123,7 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): Rea
     if (typeof window === 'undefined') return;
     
     try {
-      setUserVaults([]);
-      setVaultAddress(null);
-      setIsManager(false);
-
-      // Safe to access localStorage now
+      // Clear all vault-related data from localStorage
       const keysToRemove = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
@@ -117,7 +137,7 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): Rea
 
       // Disconnect from both wallet contexts
       await Promise.allSettled([
-        disconnectWallet().catch(console.error),
+        disconnectWallet?.().catch(console.error),
         disconnectWagmi()
       ]);
 
@@ -131,7 +151,7 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): Rea
       // Even if there's an error, try to force a refresh to ensure clean state
       window.location.reload();
     }
-  }, [setUserVaults, setVaultAddress, setIsManager, disconnectWallet, disconnectWagmi]);
+  }, [disconnectWallet, disconnectWagmi]);
 
   useEffect(() => {
     const handleAccountsChanged = (accounts: string[]) => {
@@ -160,6 +180,8 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): Rea
     setIsClient(true);
   }, []);
 
+  // Clear vault data for a specific address (moved to the top of the component)
+
   // Update the ref when userVaults changes
   React.useEffect(() => {
     if (isClient && userVaults.length > 0) {
@@ -167,6 +189,7 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): Rea
     }
   }, [userVaults, isClient]);
 
+  // Handle address changes and cleanup
   useEffect(() => {
     if (!isClient) return;
     
@@ -176,85 +199,33 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): Rea
         clearVaultData(currentAddress);
       };
     } else {
-      setUserVaults([]);
       setVaultAddress(null);
-
-      // Use the ref instead of directly accessing userVaults
       if (lastAddressRef.current) {
         clearVaultData(lastAddressRef.current);
       }
     }
   }, [address, clearVaultData, isClient]);
 
-  const { data: userVaultAddress } = useReadContract({
-    address: currentNetworkAddresses.factory,
-    abi: XmentoVaultFactoryABI,
-    functionName: 'userToVault',
-    args: [address as `0x${string}`],
-    chainId,
-    query: {
-      enabled: !!address && isSupportedNetwork,
-    },
-  });
-
+  // Update selected vault when userVaults changes
   useEffect(() => {
-    const loadVaults = () => {
-      if (!address || !isConnected || !isSupportedNetwork) {
-        setUserVaults([]);
-        setVaultAddress(null);
-        return;
-      }
-
-      if (typeof window !== 'undefined') {
-        const win = window as BrowserWindow;
-        const storageKey = `vaults_${chainId}_${address.toLowerCase()}`;
-        try {
-          const savedVaults = win?.localStorage.getItem(storageKey);
-          let vaults: `0x${string}`[] = [];
-
-          try {
-            // Parse and validate saved vaults
-            const parsedVaults = savedVaults ? JSON.parse(savedVaults) : [];
-            vaults = Array.isArray(parsedVaults) ? filterValidAddresses(parsedVaults) : [];
-
-            // Validate and add the current vault from the chain if it exists and is valid
-            if (isValidEthAddress(userVaultAddress) &&
-              userVaultAddress !== '0x0000000000000000000000000000000000000000' &&
-              !vaults.includes(userVaultAddress)) {
-              const updatedVaults = [...vaults, userVaultAddress];
-              win?.localStorage.setItem(storageKey, JSON.stringify(updatedVaults));
-              vaults = updatedVaults;
-
-              if (!vaultAddress) {
-                setVaultAddress(userVaultAddress);
-              }
-            }
-
-            // Update state with validated vaults
-            setUserVaults(vaults);
-
-            // Set the first valid vault if none is selected
-            if (vaults.length > 0 && !vaultAddress) {
-              setVaultAddress(vaults[0]);
-            }
-          } catch (error) {
-            console.error('Error processing vaults:', error);
-            // If there's an error, reset to empty array but keep the current vault if valid
-            setUserVaults([]);
-            win?.localStorage.removeItem(storageKey);
-          }
-        } catch (error) {
-          console.error('Error loading vaults from storage:', error);
-          setUserVaults([]);
-          setVaultAddress(null);
+    if (userVaults.length > 0) {
+      // If no vault is selected or the selected vault is not in the list, select the first one
+      if (!vaultAddress || !userVaults.includes(vaultAddress)) {
+        // Ensure the first vault is a valid address before setting it
+        const firstVault = userVaults[0];
+        if (isValidEthAddress(firstVault)) {
+          setVaultAddress(firstVault);
         }
       }
-    };
+    } else {
+      setVaultAddress(null);
+    }
+  }, [userVaults, vaultAddress, isValidEthAddress]);
 
-    loadVaults();
-  }, [address, chainId, userVaultAddress, isSupportedNetwork, isConnected]);
+  useEffect(() => {
+    setIsWrongNetwork(!isSupportedNetwork);
+  }, [isSupportedNetwork]);
 
-  // Handle token change
   const handleTokenChange = (token: TokenSymbol) => {
     setSelectedToken(token);
   };
@@ -262,42 +233,12 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): Rea
   // Get writeContract function from wagmi
   const { writeContract } = useWriteContract();
 
-  // Add a new vault to the user's vault list with type safety
-  const addVault = (vaultAddress: unknown) => {
-    if (!address || !isValidEthAddress(vaultAddress)) {
-      console.error('Invalid vault address or user not connected');
-      return;
-    }
-
-    const validVaultAddress = vaultAddress as `0x${string}`;
-
-    setUserVaults(prevVaults => {
-      // Check if vault already exists
-      if (prevVaults.includes(validVaultAddress)) {
-        return prevVaults;
-      }
-
-      const newVaults = [...prevVaults, validVaultAddress];
-
-      // Save to local storage
-      if (typeof window !== 'undefined') {
-        const win = window as BrowserWindow;
-        const storageKey = `vaults_${chainId}_${address.toLowerCase()}`;
-        try {
-          win?.localStorage.setItem(storageKey, JSON.stringify(newVaults));
-        } catch (error) {
-          console.error('Failed to save vault to localStorage:', error);
-        }
-      }
-
-      return newVaults;
-    });
-
-    setVaultAddress(validVaultAddress);
-  };
-
   // Handle vault creation
   const handleCreateVault = async () => {
+    setIsCreatingVault(true);
+    if (isCreatingVault) return; // Prevent multiple clicks
+    // Loading state is now handled by the useUserVaults hook
+    
     if (!address) {
       toast({
         title: 'Wallet Not Connected',
@@ -346,6 +287,7 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): Rea
             transactionHash = hash;
             // Dismiss the loading toast
             loadingToast.dismiss();
+            // Loading state is now handled by the useUserVaults hook
 
             // Show a new toast for the transaction without action
             toast({
@@ -355,49 +297,155 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): Rea
 
             // Show explorer link in a new tab
             showExplorerLink(hash, 'tx');
+            
+            // Refresh the vault list after a short delay to ensure the blockchain has updated
+            setTimeout(() => {
+              refetchVaults().catch(error => {
+                console.error('Error refreshing vault list:', error);
+              });
+            }, 2000);
+            
+            // Show success message after a short delay to allow for the transaction to be mined
+            setTimeout(() => {
+              toast({
+                title: 'Vault Created',
+                description: 'Your vault has been successfully created!',
+                variant: 'default',
+              });
+            }, 3000);
+            
             resolve(hash);
           },
           onError: (error: Error) => {
             console.error('Transaction error:', error);
+            loadingToast.dismiss();
+            // Loading state is now handled by the useUserVaults hook
             reject(new Error(`Transaction failed: ${error.message}`));
           }
         });
       });
 
-      // Wait for transaction receipt with timeout
-      const receipt = await Promise.race([
-        publicClient.waitForTransactionReceipt({
+      // Wait for transaction receipt with better error handling
+      let receipt;
+      try {
+        receipt = await publicClient.waitForTransactionReceipt({
           hash: result,
           confirmations: 1,
-          timeout: 120_000 // 2 minute timeout
-        }),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Transaction timeout. Please check the blockchain explorer for updates.')), 120_000)
-        )
-      ]);
+          timeout: 120_000, // 2 minute timeout
+          onReplaced: (replacement) => {
+            console.log('Transaction replaced:', replacement);
+            // Continue waiting for the replacement transaction
+          },
+        });
+      } catch (receiptError) {
+        console.error('Error waiting for transaction receipt:', receiptError);
+        
+        // Check if the error is due to block being out of range
+        if (receiptError instanceof Error && 
+            receiptError.message.includes('block is out of range')) {
+          // If we can't get the receipt, try to confirm the transaction directly
+          console.log('Block out of range, checking transaction status directly...');
+          try {
+            const tx = await publicClient.getTransaction({ hash: result });
+            if (tx) {
+              // If we can get the transaction, it was likely successful
+              // but we can't confirm the receipt due to node sync issues
+              console.log('Transaction found, assuming success:', tx);
+              // Create a minimal receipt-like object
+              receipt = {
+                status: 'success',
+                transactionHash: result,
+                logs: []
+              } as any; // Type assertion since we're creating a partial receipt
+            } else {
+              throw new Error('Transaction not found');
+            }
+          } catch (txError) {
+            console.error('Error checking transaction status:', txError);
+            throw new Error('Failed to confirm transaction status. Please check the blockchain explorer.');
+          }
+        } else {
+          // Re-throw other errors
+          throw receiptError;
+        }
+      }
 
+      console.log('Transaction receipt:', receipt);
+      
       // Check if transaction was successful
-      if (receipt.status === 'reverted') {
+      // Handle different status formats from different providers
+      const status = receipt.status as unknown;
+      
+      // Check if the transaction was reverted using type assertions
+      const isReverted = (
+        (typeof status === 'string' && (status === '0x0' || status === 'reverted')) ||
+        (typeof status === 'number' && status === 0)
+      );
+      
+      if (isReverted) {
         throw new Error('Transaction reverted. Please try again.');
       }
 
-      // Find the VaultCreated event
-      const vaultCreatedEvent = receipt.logs.find(
-        (log) => log.topics[0] === '0xb8b2c1a2c2310fce50d68d9a9c3999094974e5892513643ce5d0bd72058f0305' // keccak256('VaultCreated(address,address)')
-      );
+      // Define log type for better type safety
+      type LogWithTopics = {
+        topics: string[];
+        [key: string]: any;
+      };
 
-      if (!vaultCreatedEvent?.topics?.[2]) {
+      // Find the VaultCreatedV2 event
+    
+      
+      // Type guard to check if log has topics
+      const hasTopics = (log: unknown): log is LogWithTopics => {
+        return Boolean(
+          log && 
+          typeof log === 'object' && 
+          'topics' in log && 
+          Array.isArray((log as LogWithTopics).topics)
+        );
+      };
+
+      // Safely find the vault creation event
+      const vaultCreatedEvent = (receipt.logs || []).find((log: unknown) => 
+        hasTopics(log) && 
+        log.topics[0] === VAULT_CREATED_TOPIC
+      ) as LogWithTopics | undefined;
+
+      if (!vaultCreatedEvent?.topics?.[1] || !vaultCreatedEvent?.topics?.[2]) {
+        console.error('Vault creation event not found in transaction receipt. Logs:', receipt.logs);
         throw new Error('Vault creation event not found in transaction receipt');
       }
 
-      const topic = vaultCreatedEvent.topics[2];
-      const newVaultAddress = `0x${topic.slice(-40)}` as `0x${string}`;
+      // In V2, topics[1] is user address and topics[2] is vault address
+      const newVaultAddress = `0x${vaultCreatedEvent.topics[2].slice(-40)}` as `0x${string}`;
+      
+      // Log the full event for debugging
+      console.log('VaultCreatedV2 event:', {
+        userAddress: `0x${vaultCreatedEvent.topics[1].slice(-40)}`,
+        vaultAddress: newVaultAddress,
+        rawTopics: vaultCreatedEvent.topics
+      });
 
-      // Add the new vault to the user's vaults
-      addVault(newVaultAddress);
+      // The new vault will be automatically added by the useUserVaults hook
+      // Just update the selected vault and refresh the list
+      setVaultAddress(newVaultAddress);
+      refetchVaults?.();
+      
+      // Save to local storage as a fallback
+      if (address) {
+        const storageKey = `vaults_${chainId}_${address.toLowerCase()}`;
+        try {
+          const existingVaults = JSON.parse(localStorage.getItem(storageKey) || '[]');
+          if (!existingVaults.includes(newVaultAddress)) {
+            localStorage.setItem(storageKey, JSON.stringify([...existingVaults, newVaultAddress]));
+          }
+        } catch (error) {
+          console.error('Failed to save vault to localStorage:', error);
+        }
+      }
 
-      // Dismiss loading toast
-      if ('dismiss' in loadingToast) {
+      // Dismiss loading toast if it exists
+      if (loadingToast && 'dismiss' in loadingToast) {
         loadingToast.dismiss();
       }
 
@@ -418,6 +466,7 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): Rea
 
       // Auto-select the new vault
       setVaultAddress(newVaultAddress);
+      // Loading state is managed by the useUserVaults hook
 
     } catch (error: unknown) {
       console.error('Vault creation error:', error);
@@ -428,77 +477,111 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): Rea
       }
 
       let errorMessage = 'Failed to create vault. Please try again.';
+      let showReload = false;
+      
       if (error instanceof Error) {
         if (error.message.includes('User rejected the request')) {
           errorMessage = 'Transaction was rejected by your wallet.';
         } else if (error.message.includes('insufficient funds')) {
           errorMessage = 'Insufficient funds for transaction.';
+        } else if (error.message.includes('Transaction reverted')) {
+          errorMessage = 'Transaction reverted on chain. Please try again.';
+          showReload = true;
         } else if (error.message) {
           errorMessage = error.message;
         }
       }
 
-      // Show error toast
+      // Show error toast with reload option if needed
       toast({
         title: 'Error Creating Vault',
         description: errorMessage,
         variant: 'destructive',
         duration: 10000, // Show for 10 seconds
+        action: showReload ? (
+          <button
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                window.location.reload();
+              }
+            }}
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-8 px-3 text-xs"
+          >
+            Reload Page
+          </button>
+        ) : undefined,
       });
 
       // Log full error for debugging
       if (process.env.NODE_ENV === 'development') {
         console.error('Full error details:', error);
       }
+    } finally {
+      setIsCreatingVault(false);
+      // Loading state is now handled by the useUserVaults hook
     }
   };
 
-  // Format vault address for display
-  const formatVaultAddress = (address: string) => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  };
-
-  // Handle vault selection
-  const handleVaultSelect = (vault: `0x${string}`) => {
-    setVaultAddress(vault);
-  };
+  // Memoize the vault select handler to prevent unnecessary re-renders
+  const handleVaultSelect = useCallback((vault: `0x${string}`) => {
+    // Only update if the vault is different
+    if (vaultAddress !== vault) {
+      setVaultAddress(vault);
+    }
+  }, [vaultAddress]);
 
   // Vault selector component
-  const VaultSelector = () => (
+  const VaultSelector = (
     <div className="mb-6">
       <div className="flex items-center justify-between mb-2">
-        <h3 className="text-lg font-medium">Your Vaults</h3>
+        <div className="flex items-center space-x-2">
+          <h3 className="text-lg font-medium">Your Vaults</h3>
+          {isCreatingVault && (
+           <><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> Processing...</>
+          )}
+        </div>
         <button
           onClick={handleCreateVault}
-          className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+          className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled={isCreatingVault}
         >
-          + Create New Vault
+          {isCreatingVault ? (
+            <span className="flex items-center">
+              <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
+              Processing...
+            </span>
+          ) : (
+            '+ Create New Vault'
+          )}
         </button>
       </div>
       
-      {userVaults.length > 0 ? (
-        <div className="space-y-2">
-          {userVaults.map((vault) => (
-            <div 
-              key={vault}
-              onClick={() => handleVaultSelect(vault)}
-              className={`transition-all duration-200 ${
-                vaultAddress === vault 
-                  ? 'ring-2 ring-blue-500 rounded-lg' 
-                  : 'hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-lg'
-              }`}
-            >
-              <VaultStatus address={vault} exists={true} />
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="p-4 text-center text-muted-foreground border border-dashed rounded-lg">
-          No vaults found. Create your first vault to get started.
-        </div>
-      )}
+      <VaultStatus 
+        key="vault-status"
+        vaultAddress={vaultAddress} 
+        onVaultSelect={handleVaultSelect} 
+      />
     </div>
   );
+  
+  // Memoize the vault selector to prevent unnecessary re-renders
+  const MemoizedVaultSelector = useMemo(
+    () => VaultSelector,
+    [isCreatingVault, vaultAddress, handleVaultSelect]
+  );
+  
+  // Use userVaults instead of vaults to fix the lint error
+  const hasVaults = userVaults.length > 0;
+
+  // Show loading state only for initial load
+  if (isInitialLoading && !hasVaults) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-2">Loading your vaults...</span>
+      </div>
+    );
+  }
 
   // Render different states based on connection and vault status
   if (!isConnected) {
@@ -531,8 +614,8 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): Rea
     );
   }
 
-  // Show create vault prompt if no vaults exist
-  if (userVaults.length === 0) {
+  // Show create vault prompt if no vaults exist and we're not loading
+  if (userVaults.length === 0 && !isInitialLoading) {
     return (
       <Card className="w-full max-w-md mx-auto">
         <CardHeader className="text-center">
@@ -549,8 +632,13 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): Rea
             onClick={handleCreateVault}
             className="w-full"
             size="lg"
-          >
-            Create New Vault
+            disabled={isCreatingVault}
+          > 
+            {isCreatingVault ? (
+             <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</> 
+            ) : (
+              'Create New Vault'
+            )}
           </Button>
         </CardFooter>
       </Card>
@@ -567,9 +655,10 @@ export function VaultInteraction({ factoryAddress }: VaultInteractionProps): Rea
         </TabsList>
 
         <TabsContent value="vault" className="space-y-6">
-          <VaultSelector />
+          {VaultSelector}
           {vaultAddress && (
             <VaultView
+              key={`vault-${vaultAddress}`}
               vaultAddress={vaultAddress}
               isManager={isManager}
               chainId={chainId}

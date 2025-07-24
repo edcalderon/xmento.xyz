@@ -3,224 +3,329 @@
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { WalletConnectButton } from "@/components/wallet/wallet-connect-button";
-import { Copy, ExternalLink } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Copy, ExternalLink, Loader2, RefreshCw } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { useUserVaults } from '@/hooks/useUserVaults';
+import { useAccount } from 'wagmi';
 import { useToast } from "@/components/ui/use-toast";
 import { CONTRACT_ADDRESSES, DEFAULT_CHAIN } from "@/config/contracts";
-import { useAccount } from "wagmi";
-import { CHAIN_IDS } from '@/lib/wagmi.config';
-
-
-// TypeScript declarations for browser globals
-type BrowserWindow = Window & typeof globalThis & {
-  ethereum?: any;
-  localStorage: {
-    getItem: (key: string) => string | null;
-    setItem: (key: string, value: string) => void;
-  };
-};
-
-declare const window: BrowserWindow | undefined;
+import { XmentoVaultFactoryABI as factoryABI } from './XmentoVaultFactoryABI';
 
 interface VaultStatusProps {
-  address: string | undefined;
-  exists?: boolean; // When true, skips the existence check
+  vaultAddress?: `0x${string}` | null;
+  onVaultSelect?: (vault: `0x${string}`) => void;
 }
 
-
-export function VaultStatus({ address, exists = false }: VaultStatusProps) {
-  const [vaultAddress, setVaultAddress] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+export function VaultStatus({ vaultAddress, onVaultSelect }: VaultStatusProps) {
+  const { address } = useAccount();
+  const { vaults, isInitialLoading, isRefreshing, lastFetched, refetch } = useUserVaults();
+  const [isCreatingVault, setIsCreatingVault] = useState(false);
+  const [isClient, setIsClient] = useState(false);
   const { toast } = useToast();
   const { chain } = useAccount();
   const chainId = chain?.id || DEFAULT_CHAIN;
-
-  // Track if component is mounted on client
-  const [isClient, setIsClient] = useState(false);
-
-  // Set isClient to true on mount (client-side only)
+  
+  // Show loading state only for initial load or user-initiated refresh
+  const isLoading = isInitialLoading || isRefreshing;
+  
+  // Set client flag on mount
   useEffect(() => {
     setIsClient(true);
   }, []);
 
-  // Skip existence check if we already know the vault exists
+  const handleRefreshVaults = () => {
+    // This will trigger a user-initiated refresh with isRefreshing=true
+    refetch();
+  };
+
+  // Handle vault creation
+  const handleCreateVault = async () => {
+    if (!window.ethereum || !address || !chainId) return;
+
+    setIsCreatingVault(true);
+    let tx: ethers.TransactionResponse | null = null;
+    const TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
+
+    try {
+      // Show preparing transaction state
+      toast({
+        title: 'Preparing Transaction',
+        description: 'Please wait while we prepare your vault creation...',
+        duration: 10000,
+      });
+
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+
+      const factoryAddress = CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES]?.factory as `0x${string}`;
+      if (!factoryAddress) {
+        throw new Error('Factory address not found for current network');
+      }
+
+      const factory = new ethers.Contract(factoryAddress, factoryABI, signer);
+
+      // Show wallet confirmation state
+      toast({
+        title: 'Confirm in Wallet',
+        description: 'Please confirm the transaction in your wallet to create the vault',
+        duration: 60000, // 1 minute for user to confirm
+      });
+
+      // Start transaction with timeout
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Transaction timed out. Please try again.')), TIMEOUT_MS)
+      );
+
+      // Execute transaction
+      tx = await Promise.race([
+        factory.createVault(),
+        timeoutPromise
+      ]) as ethers.TransactionResponse;
+
+      // Show transaction submitted state
+      toast({
+        title: 'Transaction Submitted',
+        description: 'Your vault creation is being processed...',
+        duration: 10000,
+      });
+
+      // Wait for transaction confirmation
+      await tx.wait();
+
+      // Force refresh vaults after confirmation with a small delay
+      // to ensure the blockchain has the latest state
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      await refetch();
+
+      // Show success message
+      const explorerUrl = tx?.hash ?
+        `${chain?.blockExplorers?.default?.url || 'https://alfajores.celoscan.io'}/tx/${tx.hash}` :
+        '';
+
+      toast({
+        title: '✅ Vault Created Successfully!',
+        description: (
+          <div className="flex flex-col gap-2">
+            <p>Your new vault has been created.</p>
+            {explorerUrl && (
+              <a
+                href={explorerUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center text-sm text-primary hover:underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                View on Explorer <ExternalLink className="w-3 h-3 ml-1" />
+              </a>
+            )}
+          </div>
+        ),
+        duration: 10000,
+      });
+
+    } catch (error: any) {
+      console.error('Error creating vault:', error);
+
+      // Handle specific error cases
+      let errorMessage = 'Failed to create vault';
+
+      // Show error toast
+      toast({
+        title: 'Error creating vault',
+        description: error instanceof Error ? error.message : 'Failed to create vault',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCreatingVault(false);
+    }
+  };
+
+  // Refresh vaults when address or chain changes
   useEffect(() => {
-    // Only run on client side
     if (!isClient) return;
 
-    const checkDeployedVault = async () => {
-      setIsLoading(true);
+    refetch();
 
-      if (!address) {
-        setVaultAddress(null);
-        setIsLoading(false);
-        return;
-      }
+    // Set up polling
+    const interval = setInterval(refetch, 30000); // Check every 30 seconds
+    return () => clearInterval(interval);
+  }, [refetch, isClient]);
 
-      // If we know the vault exists, just use the address
-      if (exists) {
-        setVaultAddress(address);
-        setIsLoading(false);
-        return;
-      }
+  // Set isClient on mount
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
-      try {
-        // Check local storage first (only in browser environment)
-        if (window?.localStorage) {
-          try {
-            const savedVault = window.localStorage.getItem(`vault_${address}`);
-            if (savedVault) {
-              setVaultAddress(savedVault);
-              setIsLoading(false);
-              return;
-            }
-          } catch (error) {
-            console.error('Error accessing localStorage:', error);
-          }
-        }
+  // Handle copy to clipboard
+  const handleCopyAddress = (vaultAddress: string) => {
+    if (typeof window === 'undefined') return;
 
-        // Skip if no ethereum provider
-        if (!window?.ethereum) {
-          console.warn('Ethereum provider not found');
-          setIsLoading(false);
-          return;
-        }
+    navigator.clipboard.writeText(vaultAddress);
+    toast({
+      title: 'Copied!',
+      description: 'Vault address copied to clipboard',
+    });
+  };
 
-        // Factory contract ABI - this should match your deployed contract
-        const factoryABI = [
-          'function getVaultAddress(address) view returns (address)',
-          'function createVault() returns (address)'
-        ] as const;
+  // Handle view on explorer
+  const handleViewOnExplorer = (vaultAddress: string) => {
+    if (typeof window === 'undefined') return;
 
-        const provider = new ethers.BrowserProvider(window.ethereum);
-        const signer = await provider.getSigner();
+    const explorerUrl = chain?.blockExplorers?.default?.url || 'https://alfajores.celoscan.io';
+    window.open(`${explorerUrl}/address/${vaultAddress}`, '_blank', 'noopener,noreferrer');
+  };
 
-        // Factory contract address - using the one from memory
-        const factoryAddress = CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES]?.factory as `0x${string}`;
-        if (!factoryAddress) {
-          console.error('Factory address not found for chain ID:', chainId);
-          setIsLoading(false);
-          return;
-        }
+  // Loading state - only show spinner during initial load
+  if (isLoading && vaults.length === 0) {
+    return (
+      <div className="p-4 border rounded-lg bg-muted/50">
+        <div className="flex items-center justify-center p-4">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          <span className="ml-2 text-sm text-muted-foreground">Loading vaults...</span>
+        </div>
+      </div>
+    );
+  }
 
-        const factory = new ethers.Contract(factoryAddress, factoryABI, signer);
-
-        // Check if user already has a vault
-        const vaultAddress = await factory.getVaultAddress(address);
-        if (vaultAddress && vaultAddress !== ethers.ZeroAddress) {
-          setVaultAddress(vaultAddress);
-          // Save to local storage (browser only)
-          if (window?.localStorage) {
-            try {
-              window.localStorage.setItem(`vault_${address}`, vaultAddress);
-            } catch (error) {
-              console.error('Error saving to localStorage:', error);
-            }
-          }
-        }
-      } catch (error: any) {
-        console.error('Error checking deployed vault:', error.message);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    checkDeployedVault();
-  }, [address]);
-
-  // If no wallet is connected, show the connect wallet button with network switcher
+  // No wallet connected
   if (!address) {
-    return <WalletConnectButton className="w-full sm:w-auto" showNetworkSwitcher={true} />;
-  }
-
-  // If loading, show a skeleton
-  if (isLoading) {
     return (
-      <div className="h-12 w-full bg-muted/50 rounded-lg animate-pulse" />
-    );
-  }
-
-  // If user has a vault, show the vault info
-  if (vaultAddress) {
-    // TypeScript now knows vaultAddress is a string here
-    const address = vaultAddress; // Create a new variable to help with type narrowing
-
-    const copyToClipboard = (e: React.MouseEvent) => {
-      e.stopPropagation();
-      navigator.clipboard.writeText(address);
-      toast({ 
-        title: 'Copied',
-        description: 'Vault address copied to clipboard',
-      });
-    };
-
-    const viewOnExplorer = (e: React.MouseEvent) => {
-      e.stopPropagation();
-      if (typeof window === 'undefined') return;
-      const explorerUrl = `https://${chain?.id === CHAIN_IDS.CELO_MAINNET ? 'celo' : 'celo-alfajores'}.blockscout.com/address/${vaultAddress}`;
-      window.open(explorerUrl, '_blank', 'noopener,noreferrer');
-    };
-
-    const handleVaultClick = () => {
-      // Handle vault selection if needed
-      // This can be extended with additional click handlers
-    };
-
-    return (
-      <div
-        onClick={handleVaultClick}
-        className={`flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer`}
-      >
-        <div className="flex items-center">
-          <div className="w-3 h-3 rounded-full bg-blue-500 mr-3"></div>
-          <span className="font-mono">{`${address.slice(0, 6)}...${address.slice(-4)}`}</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <span className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 px-2 py-1 rounded-full">
-            Active
-          </span>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  className="p-1 text-muted-foreground hover:text-foreground rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
-                  onClick={copyToClipboard}
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Copy address</p>
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  className="p-1 text-muted-foreground hover:text-foreground rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
-                  onClick={viewOnExplorer}
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>View on Celo Explorer</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+      <div className="p-4 border rounded-lg bg-muted/50">
+        <p className="text-sm text-muted-foreground">
+          Connect your wallet to view or create vaults
+        </p>
+        <div className="mt-4">
+          <WalletConnectButton variant="default" />
         </div>
       </div>
     );
   }
 
-  // User is connected but has no vault
+  // No vaults found
+  if (vaults.length === 0) {
+    return (
+      <div className="p-4 text-center border rounded-lg bg-muted/50">
+        <p className="mb-4 text-sm text-muted-foreground">
+          No vaults found for your wallet
+        </p>
+        <div className="relative">
+          <button
+            onClick={handleCreateVault}
+            disabled={isCreatingVault}
+            className={`px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 transition-all duration-200 ${isCreatingVault ? 'pr-10' : ''
+              } disabled:opacity-70 disabled:cursor-not-allowed`}
+          >
+            {isCreatingVault ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Creating...
+              </>
+            ) : (
+              'Create Vault'
+            )}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Show vaults list
   return (
-    <div className="flex flex-col items-center justify-center p-6 rounded-lg border border-dashed border-gray-200 dark:border-gray-700 text-center">
-      <div className="text-sm text-muted-foreground mb-4">
-        No vault found for your wallet address
-      </div>
-      <div className="text-xs text-muted-foreground">
-        Create a new vault to get started
-      </div>
+    <div className="space-y-4">
+      <TooltipProvider>
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-medium">Your Vaults</h3>
+          <div className="flex items-center space-x-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => handleRefreshVaults()}
+                  disabled={isRefreshing}
+                  className="p-1.5 rounded-md hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center space-x-2"
+                  aria-label="Refresh vaults"
+                >
+                  {isRefreshing ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Refreshing...</> : <><RefreshCw className="h-4 w-4 mr-2" /> Refresh</>}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Refresh vault list</TooltipContent>
+            </Tooltip>
+
+          </div>
+        </div>
+
+        <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
+          {vaults.map((vault) => {
+            const displayAddress = `${vault.slice(0, 6)}...${vault.slice(-4)}`;
+            return (
+              <div
+                key={vault}
+                onClick={() => onVaultSelect?.(vault)}
+                className={`flex items-center justify-between p-3 border rounded-lg transition-colors cursor-pointer ${vaultAddress === vault
+                  ? 'border-primary ring-2 ring-primary/20 bg-accent/50'
+                  : 'border-border bg-card hover:bg-accent/30'
+                  }`}
+              >
+
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 rounded-full bg-green-500" />
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="font-mono text-sm cursor-default">
+                        {displayAddress}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{vault}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <div className="flex space-x-2">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCopyAddress(vault);
+                        }}
+                        className="p-1.5 rounded-md hover:bg-muted"
+                        aria-label="Copy address"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>Copy Address</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleViewOnExplorer(vault);
+                        }}
+                        className="p-1.5 rounded-md hover:bg-muted"
+                        aria-label="View on explorer"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>View on Explorer</TooltipContent>
+                  </Tooltip>
+                </div>
+
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center justify-between pt-2 border-t">
+          <div className="text-sm text-muted-foreground">
+            {vaults.length} Vault{vaults.length !== 1 ? 's' : ''} found
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {lastFetched ? `Last updated: ${new Date(lastFetched).toLocaleTimeString()}` : 'Never updated'}
+          </div>
+        </div>
+      </TooltipProvider>
     </div>
   );
 }

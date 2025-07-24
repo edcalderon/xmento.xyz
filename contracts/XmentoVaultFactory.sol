@@ -30,14 +30,14 @@ interface IXmentoVault {
  * @notice This contract implements reentrancy protection and follows the Checks-Effects-Interactions pattern
  */
 contract XmentoVaultFactory is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, AccessControlUpgradeable, UUPSUpgradeable {
-    // Mapping from user address to their vault address
-    mapping(address => address) public userToVault;
+    // Mapping from user address to array of their vault addresses
+    mapping(address => address[]) public userVaults;
     
     // Array of all deployed vaults
     address[] public allVaults;
     
     // Mapping to track valid vaults
-    mapping(address => bool) private _isVault;
+    mapping(address => bool) internal _isVault;
     
     // Event emitted when a new vault is created
     event VaultCreated(address indexed user, address indexed vaultAddress);
@@ -122,19 +122,18 @@ contract XmentoVaultFactory is Initializable, OwnableUpgradeable, ReentrancyGuar
     }
     
     /**
-     * @dev Creates a new vault for the sender if they don't already have one
+     * @dev Creates a new vault for the sender
      * @return The address of the newly created vault
      * @notice This function is protected against reentrancy
      */
-    function createVault() external nonReentrant returns (address) {
-        require(userToVault[msg.sender] == address(0), "Vault already exists for this user");
+    function createVault() external virtual nonReentrant returns (address) {
         require(vaultImplementation != address(0), "Invalid vault implementation");
         
         address vaultAddress = Clones.clone(vaultImplementation);
         require(vaultAddress != address(0), "Vault creation failed");
         
         // Update state before any external calls
-        userToVault[msg.sender] = vaultAddress;
+        userVaults[msg.sender].push(vaultAddress);
         allVaults.push(vaultAddress);
         _isVault[vaultAddress] = true;
         
@@ -147,9 +146,6 @@ contract XmentoVaultFactory is Initializable, OwnableUpgradeable, ReentrancyGuar
             dex,
             address(yieldOracle)
         );
-        
-        // Transfer ownership to the user
-        XmentoVault(vaultAddress).transferOwnership(msg.sender);
         
         emit VaultCreated(msg.sender, vaultAddress);
         
@@ -177,19 +173,39 @@ contract XmentoVaultFactory is Initializable, OwnableUpgradeable, ReentrancyGuar
     {}
     
     /**
-     * @dev Gets the vault address for a user
+     * @dev Gets all vault addresses for a user
      * @param user The address of the user
-     * @return The address of the user's vault, or address(0) if not found
+     * @return An array of vault addresses owned by the user
      */
-    function getVaultAddress(address user) external view returns (address) {
-        return userToVault[user];
+    function getUserVaults(address user) external view virtual returns (address[] memory) {
+        return userVaults[user];
+    }
+    
+    /**
+     * @dev Gets the number of vaults owned by a user
+     * @param user The address of the user
+     * @return The number of vaults owned by the user
+     */
+    function getUserVaultCount(address user) external view virtual returns (uint256) {
+        return userVaults[user].length;
+    }
+    
+    /**
+     * @dev Gets a specific vault by index for a user
+     * @param user The address of the user
+     * @param index The index of the vault to retrieve
+     * @return The address of the vault at the specified index
+     */
+    function getUserVault(address user, uint256 index) external view virtual returns (address) {
+        require(index < userVaults[user].length, "Index out of bounds");
+        return userVaults[user][index];
     }
     
     /**
      * @dev Gets the total number of vaults created
      * @return The total number of vaults
      */
-    function getVaultCount() external view returns (uint256) {
+function getVaultCount() external view virtual returns (uint256) {
         return allVaults.length;
     }
     
@@ -203,10 +219,19 @@ contract XmentoVaultFactory is Initializable, OwnableUpgradeable, ReentrancyGuar
     }
     
     /**
+     * @dev Internal function to set vault status
+     * @param vault The address of the vault
+     * @param status The status to set
+     */
+    function _setVaultStatus(address vault, bool status) internal {
+        _isVault[vault] = status;
+    }
+    
+    /**
      * @dev Gets all vault addresses
      * @return An array of all vault addresses
      */
-    function getVaults() external view returns (address[] memory) {
+function getVaults() external view virtual returns (address[] memory) {
         return allVaults;
     }
     

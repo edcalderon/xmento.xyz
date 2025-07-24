@@ -796,8 +796,8 @@
       "artifacts": []
     },
     "/home/ed/Documents/HACK/xmento.xyz/contracts/XmentoVaultFactory.sol": {
-      "lastModificationDate": 1753053935130,
-      "contentHash": "e1ebac723251f2ed0a24fc1bdefa4c67",
+      "lastModificationDate": 1753325280357,
+      "contentHash": "5b5e154432da86e249b2377226af210d",
       "sourceName": "contracts/XmentoVaultFactory.sol",
       "solcConfig": {
         "version": "0.8.20",
@@ -2077,7 +2077,7 @@
       ]
     },
     "/home/ed/Documents/HACK/xmento.xyz/contracts/ReentrancyTest.sol": {
-      "lastModificationDate": 1753039384606,
+      "lastModificationDate": 1753309258474,
       "contentHash": "1f10e288961527b30a5c5a85a01216e6",
       "sourceName": "contracts/ReentrancyTest.sol",
       "solcConfig": {
@@ -2158,6 +2158,46 @@
       ],
       "artifacts": [
         "DummyDex"
+      ]
+    },
+    "/home/ed/Documents/HACK/xmento.xyz/contracts/XmentoVaultFactoryV2.sol": {
+      "lastModificationDate": 1753325287917,
+      "contentHash": "a2ba0043b66bc89ccf5b40ad3ce4f500",
+      "sourceName": "contracts/XmentoVaultFactoryV2.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": false,
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata",
+                "storageLayout"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "./XmentoVaultFactory.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "XmentoVaultFactoryV2"
       ]
     }
   }

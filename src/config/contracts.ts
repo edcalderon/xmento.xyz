@@ -1,3 +1,4 @@
+import { keccak256, toHex } from 'viem';
 import { mainnet } from 'viem/chains';
 import { celoAlfajores } from 'viem/chains';
 
@@ -12,10 +13,10 @@ export type TokenSymbol = keyof typeof TOKENS;
 // Contract addresses by network
 export const CONTRACT_ADDRESSES = {
   [mainnet.id]: {
-    factory: '0xYourMainnetFactoryAddress' as `0x${string}`,
+    factory: process.env.NEXT_PUBLIC_CONTRACT_FACTORY_ADDRESS_MAINNET as `0x${string}` || '0x07678F40056AC0c7C664FDA0973E13D62c49E78A',
   },
   [celoAlfajores.id]: {
-    factory: process.env.NEXT_PUBLIC_FACTORY_ADDRESS as `0x${string}` || '0x36eA57D1D52cd475aD6d842a18EDa975Eb88A31E',
+    factory: process.env.NEXT_PUBLIC_CONTRACT_FACTORY_ADDRESS as `0x${string}` || '0x07678F40056AC0c7C664FDA0973E13D62c49E78A',
   },
 } as const;
 
@@ -25,3 +26,5 @@ export const DEFAULT_CHAIN = celoAlfajores.id;
 export interface VaultInteractionProps {
   factoryAddress?: `0x${string}`;
 }
+
+export const VAULT_CREATED_TOPIC = keccak256(toHex('VaultCreatedV2(address,address,uint256)'));

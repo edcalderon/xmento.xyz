@@ -92,8 +92,57 @@ describe("XmentoVaultFactory", function () {
       const [userAddress, vaultAddress] = event.args;
       expect(userAddress).to.equal(user.address);
       expect(vaultAddress).to.not.equal(ethers.ZeroAddress);
-      expect(await factory.userToVault(user.address)).to.equal(vaultAddress);
+      // Check that the user has exactly one vault
+      const userVaults = await factory.getUserVaults(user.address);
+      expect(userVaults.length).to.equal(1);
+      expect(userVaults[0]).to.equal(vaultAddress);
       expect(await factory.isVault(vaultAddress)).to.be.true;
+    });
+  });
+
+  describe("Multiple Vaults", function () {
+    it("Should allow a user to create multiple vaults", async function () {
+      // Create first vault
+      let tx = await factory.connect(user).createVault();
+      let receipt = await tx.wait();
+      let event = receipt.logs.find((log) => {
+        try {
+          return log.fragment?.name === 'VaultCreated';
+        } catch (e) {
+          return false;
+        }
+      });
+      const firstVault = event.args[1];
+
+      // Create second vault with the same user
+      tx = await factory.connect(user).createVault();
+      receipt = await tx.wait();
+      event = receipt.logs.find((log) => {
+        try {
+          return log.fragment?.name === 'VaultCreated';
+        } catch (e) {
+          return false;
+        }
+      });
+      const secondVault = event.args[1];
+
+      // Check that both vaults exist and are different
+      expect(firstVault).to.not.equal(secondVault);
+      expect(await factory.isVault(firstVault)).to.be.true;
+      expect(await factory.isVault(secondVault)).to.be.true;
+
+      // Check that both vaults are associated with the user
+      const userVaults = await factory.getUserVaults(user.address);
+      expect(userVaults).to.include(firstVault);
+      expect(userVaults).to.include(secondVault);
+      expect(userVaults.length).to.equal(2);
+
+      // Check vault count
+      expect(await factory.getUserVaultCount(user.address)).to.equal(2);
+
+      // Check individual vault access
+      expect(await factory.getUserVault(user.address, 0)).to.equal(firstVault);
+      expect(await factory.getUserVault(user.address, 1)).to.equal(secondVault);
     });
   });
 
