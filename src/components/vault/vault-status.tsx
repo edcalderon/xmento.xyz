@@ -3,9 +3,10 @@
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { WalletConnectButton } from "@/components/wallet/wallet-connect-button";
-import { Copy, ExternalLink, Loader2, RefreshCw } from "lucide-react";
+import { Copy, ExternalLink, Loader2, RefreshCw, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useUserVaults } from '@/hooks/useUserVaults';
 import { useAccount } from 'wagmi';
 import { useToast } from "@/components/ui/use-toast";
@@ -13,6 +14,7 @@ import { CONTRACT_ADDRESSES, DEFAULT_CHAIN } from "@/config/contracts";
 import { XmentoVaultFactoryABI as factoryABI } from './XmentoVaultFactoryABI';
 import { handleViewOnExplorer } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { useVaultRefresh, RefreshInterval } from '@/hooks/useVaultRefresh';
 
 interface VaultStatusProps {
   vaultAddress?: `0x${string}` | null;
@@ -22,38 +24,27 @@ interface VaultStatusProps {
 
 export function VaultStatus({ vaultAddress, onVaultSelect, isMobileBrowser = false }: VaultStatusProps) {
   const { address } = useAccount();
-  const { vaults, isInitialLoading, isRefreshing, lastFetched, refetch } = useUserVaults();
+  const pollingInterval = 0;
+  const { vaults, isInitialLoading, refetch } = useUserVaults(pollingInterval);
+  const { isRefreshing, lastFetched, refresh, refreshInterval, setRefreshInterval } = useVaultRefresh(refetch, {
+    initialInterval: 'manual'
+  });
+
+  // Log refresh interval changes
+  useEffect(() => {
+    console.log('Refresh interval changed to:', refreshInterval);
+    // When interval changes, ensure we refresh immediately if not manual
+    if (refreshInterval !== 'manual') {
+      refresh();
+    }
+  }, [refreshInterval, refresh]);
   const [isCreatingVault, setIsCreatingVault] = useState(false);
-  const [isClient, setIsClient] = useState(false);
   const { toast } = useToast();
   const { chain } = useAccount();
   const chainId = chain?.id || DEFAULT_CHAIN;
-  
-  // Ensure we have isMobileBrowser value
-  const isMobileBrowserState = useIsMobile();
-  const finalIsMobileBrowser = isMobileBrowser || isMobileBrowserState;
-  
-  // Only show loading state for initial load or explicit user refresh
-  // Don't show loading state during background refreshes or vault switching
-  const isLoading = isInitialLoading || (isRefreshing && !isClient);
-  
-  // Set client flag on mount
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
 
-  const handleRefreshVaults = async () => {
-    try {
-      await refetch();
-    } catch (error) {
-      console.error('Error refreshing vaults:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to refresh vaults. Please try again.',
-        variant: 'destructive',
-      });
-    }
-  };
+  // Only show loading state for initial load or explicit user refresh
+  const isLoading = isInitialLoading || isRefreshing;
 
   // Handle vault creation
   const handleCreateVault = async () => {
@@ -157,22 +148,7 @@ export function VaultStatus({ vaultAddress, onVaultSelect, isMobileBrowser = fal
     }
   };
 
-  // Refresh vaults when address or chain changes
-  useEffect(() => {
-    if (!isClient) return;
 
-    refetch();
-
-    // Set up polling with mobile-specific interval
-    const pollingInterval = finalIsMobileBrowser ? 15000 : 30000; // 15 seconds on mobile, 30 seconds on desktop
-    const interval = setInterval(refetch, pollingInterval);
-    return () => clearInterval(interval);
-  }, [refetch, isClient, isMobileBrowser]);
-
-  // Set isClient on mount
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
 
   // Handle copy to clipboard
   const handleCopyAddress = (vaultAddress: string) => {
@@ -185,24 +161,16 @@ export function VaultStatus({ vaultAddress, onVaultSelect, isMobileBrowser = fal
     });
   };
 
-  // Loading state - show spinner during initial load and polling
-  if (isLoading || isRefreshing) {
+  // Show loading state only during initial load when no vaults are found
+  if (isLoading && vaults.length === 0) {
     return (
       <div className="p-4 border rounded-lg bg-muted/50">
-        <div className="flex flex-col items-center justify-center gap-2 p-4">
+        <div className="flex items-center justify-center p-4">
           <Loader2 className="h-5 w-5 animate-spin" />
-          <span className="text-sm text-muted-foreground">
-            {isLoading && vaults.length === 0 ? 'Loading vaults...' : 'Refreshing vaults...'}
-          </span>
-          {isRefreshing && (
-            <span className="text-xs text-muted-foreground">
-              Last updated {lastFetched ? new Date(lastFetched).toLocaleTimeString() : 'never'}
-            </span>
-          )}
+          <span className="ml-2 text-sm text-muted-foreground">Loading vaults...</span>
         </div>
       </div>
     );
-  
   }
 
   // No vaults found
@@ -238,28 +206,76 @@ export function VaultStatus({ vaultAddress, onVaultSelect, isMobileBrowser = fal
     <div className="space-y-4">
       <TooltipProvider>
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-lg font-medium">Your Vaults</h3>
-          <Tooltip>
-            <TooltipTrigger asChild>
+          <h3 className="text-lg font-medium"></h3>
+          <Popover>
+            <Tooltip>
+
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleRefreshVaults}
                 disabled={isRefreshing}
-                className="h-8 w-8 p-0"
+                className="h-8 w-16 rounded-full flex items-center justify-center relative group"
               >
-                {isRefreshing ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
+                <div
+                  className="absolute inset-0 flex items-center justify-center cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    refresh();
+                  }}
+                >
+                  {isRefreshing ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <span className="sr-only">Refreshing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="h-4 w-4" />
+                      <span className="sr-only">Refresh</span>
+                    </>
+                  )}
+                </div>
+                <div className="absolute right-0 flex items-center justify-center pr-2">
+                  <PopoverTrigger asChild>
+                    <div
+                      className="cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                      }}
+                    >
+                      <ChevronDown className="h-3 w-3" />
+                      <span className="sr-only">Open refresh interval options</span>
+                    </div>
+                  </PopoverTrigger>
+                </div>
+                {refreshInterval !== 'manual' && (
+                  <span className="absolute -top-1 -right-1 bg-primary text-xs text-white rounded-full px-1.5 py-0.5 min-w-[16px] text-center">
+                    {refreshInterval.replace('s', '')}
+                  </span>
                 )}
-                <span className="sr-only">Refresh</span>
               </Button>
-            </TooltipTrigger>
-            <TooltipContent>Refresh vault list</TooltipContent>
-          </Tooltip>
-        </div>
 
+              <TooltipContent>Refresh vault list</TooltipContent>
+            </Tooltip>
+            <PopoverContent className="w-40 p-2" align="end">
+              <div className="space-y-2">
+                <h4 className="text-xs font-medium">Refresh Interval</h4>
+                <select
+                  value={refreshInterval}
+                  onChange={(e) => setRefreshInterval(e.target.value as RefreshInterval)}
+                  className="w-full rounded-md border border-input bg-background px-2 py-1 text-sm text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="manual">Manual</option>
+                  <option value="30s">Every 30s</option>
+                  <option value="1m">Every 1m</option>
+                  <option value="5m">Every 5m</option>
+                  <option value="30m">Every 30m</option>
+                </select>
+              </div>
+            </PopoverContent>
+          </Popover>
+
+        </div>
         <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
           {vaults.map((vault) => {
             const displayAddress = `${vault.slice(0, 6)}...${vault.slice(-4)}`;

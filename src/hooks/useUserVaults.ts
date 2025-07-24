@@ -14,7 +14,7 @@ type UseUserVaultsReturn = {
   refetch: () => Promise<void>;
 };
 
-export function useUserVaults(): UseUserVaultsReturn {
+export function useUserVaults(pollingInterval: number = 0): UseUserVaultsReturn {
   const { address } = useAccount();
   const { toast } = useToast();
   const [vaults, setVaults] = useState<`0x${string}`[]>([]);
@@ -213,10 +213,10 @@ export function useUserVaults(): UseUserVaultsReturn {
     };
     
     // Set up the interval
-    interval = setInterval(poll, 15000); // Poll every 15 seconds for better chain state detection
+    interval = setInterval(poll, pollingInterval);
     
     // Initial poll after a short delay
-    const initialPollTimer = setTimeout(poll, 5000); // Initial poll after 5 seconds
+    const initialPollTimer = setTimeout(poll, 5000);
     
     // Cleanup function
     return () => {
@@ -224,7 +224,7 @@ export function useUserVaults(): UseUserVaultsReturn {
       if (interval) clearInterval(interval);
       clearTimeout(initialPollTimer);
     };
-  }, [initialLoadComplete, address, chainId, fetchVaults]);
+  }, [initialLoadComplete, address, chainId, fetchVaults, pollingInterval]);
 
   // Memoize the refetch function to prevent unnecessary re-renders
   const refetch = useCallback(() => fetchVaults(true, false), [fetchVaults]);
