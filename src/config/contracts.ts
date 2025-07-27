@@ -23,6 +23,11 @@ export const CONTRACT_ADDRESSES = {
 // Default to Alfajores if not specified
 export const DEFAULT_CHAIN = celoAlfajores.id;
 
+// Get addresses for the current network
+export const getCurrentNetworkAddresses = (chainId: number = DEFAULT_CHAIN) => {
+  return CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES] || CONTRACT_ADDRESSES[DEFAULT_CHAIN];
+};
+
 export interface VaultInteractionProps {
   factoryAddress?: `0x${string}`;
 }

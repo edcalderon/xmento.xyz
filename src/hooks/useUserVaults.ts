@@ -7,24 +7,24 @@ import { XmentoVaultFactoryV2ABI } from '@/components/vault/XmentoVaultFactoryV2
 
 type UseUserVaultsReturn = {
   vaults: `0x${string}`[];
-  isInitialLoading: boolean;
+  isLoading: boolean;
   isRefreshing: boolean;
+  isInitialized: boolean;
   setIsRefreshing: (value: boolean) => void;
   lastFetched: number | null;
-  refetch: () => Promise<void>;
+  refetch: (force?: boolean, isBackground?: boolean) => Promise<void>;
 };
 
-export function useUserVaults(pollingInterval: number = 0): UseUserVaultsReturn {
+export function useUserVaults(): UseUserVaultsReturn {
   const { address } = useAccount();
   const { toast } = useToast();
   const [vaults, setVaults] = useState<`0x${string}`[]>([]);
-  const [isInitialLoading, setIsInitialLoading] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
-  const [isBackgroundRefreshing, setIsBackgroundRefreshing] = useState<boolean>(false);
   const [lastFetched, setLastFetched] = useState<number | null>(null);
   const [chainId, setChainId] = useState<number | undefined>();
-  const [initialLoadComplete, setInitialLoadComplete] = useState<boolean>(false);
   const [lastFetchError, setLastFetchError] = useState<Error | null>(null);
+  const [isInitialized, setIsInitialized] = useState<boolean>(false);
   
   // Use refs to track the latest values without causing re-renders
   const vaultsRef = useRef(vaults);
@@ -60,18 +60,34 @@ export function useUserVaults(pollingInterval: number = 0): UseUserVaultsReturn 
   }, []);
 
   const fetchVaults = useCallback(async (force = false, isBackground = false) => {
-    // Skip if already in progress, unless it's a forced refresh or initial load
-    if ((isInitialLoading || isRefreshing || isBackgroundRefreshing) && !force) {
-      console.log('Skipping fetch - already in progress');
+    // Skip if already in progress, unless it's a forced refresh
+    if ((isLoading || isRefreshing) && !force) {
+      console.log('[useUserVaults] Skipping fetch - already in progress');
       return;
     }
 
-    const isInitialLoad = !initialLoadComplete;
-    // Always fetch on initial load, otherwise skip if we have data and it's not a forced refresh
-    const shouldSkip = !force && vaultsRef.current.length > 0 && !isInitialLoad;
+    const isInitialLoad = !isInitialized;
+    
+    // Skip if we have data and it's not a forced refresh
+    if (!force && vaultsRef.current.length > 0 && !isInitialLoad) {
+      console.log('[useUserVaults] Skipping fetch - already have data and this is not a forced refresh');
+      return;
+    }
 
-    if (shouldSkip) {
-      console.log('Skipping fetch - already have data and this is not a forced refresh');
+    // Don't proceed if there's no address or chainId
+    if (!address) {
+      console.log('[useUserVaults] No address connected, skipping fetch');
+      setVaults([]);
+      setIsLoading(false);
+      setIsRefreshing(false);
+      return;
+    }
+
+    if (!chainId) {
+      console.log('[useUserVaults] No chain ID detected, skipping fetch');
+      setVaults([]);
+      setIsLoading(false);
+      setIsRefreshing(false);
       return;
     }
 
@@ -79,22 +95,31 @@ export function useUserVaults(pollingInterval: number = 0): UseUserVaultsReturn 
       // Clear any previous errors
       setLastFetchError(null);
       
-      // Set appropriate loading states
+      // Set loading state based on the type of operation
       if (isInitialLoad) {
-        setIsInitialLoading(true);
+        setIsLoading(true);
+        setIsRefreshing(false);
       } else if (isBackground) {
         // For background refreshes, we don't show a loading state
-        setIsBackgroundRefreshing(true);
+        setIsRefreshing(false);
       } else {
-        // Only show refreshing state for user-initiated refreshes
+        // For user-initiated refreshes, show the refreshing state
         setIsRefreshing(true);
       }
+
+      // Log the fetch attempt
+      console.log(`[useUserVaults] Fetching vaults for address: ${address} on chain ID: ${chainId}`, {
+        isInitialLoad,
+        isBackground,
+        force,
+        currentVaults: vaultsRef.current
+      });
 
 
 
       if (!chainId) {
         console.log('No chain ID detected');
-        setIsInitialLoading(false);
+        setIsLoading(false);
         setIsRefreshing(false);
         return;
       }
@@ -106,9 +131,13 @@ export function useUserVaults(pollingInterval: number = 0): UseUserVaultsReturn 
       const factoryAddress = CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES]?.factory as `0x${string}`;
 
       if (!factoryAddress) {
-        const errorMsg = `Factory address not found for network with chain ID: ${chainId}`;
+        const errorMsg = `Factory address not found for network with chain ID: ${chainId}. Available chain IDs: ${Object.keys(CONTRACT_ADDRESSES).join(', ')}`;
         console.error('[useUserVaults]', errorMsg);
-        throw new Error(errorMsg);
+        setVaults([]);
+        setLastFetched(Date.now());
+        setIsLoading(false);
+        setIsRefreshing(false);
+        return;
       }
 
       console.log('[useUserVaults] Using factory address:', factoryAddress);
@@ -136,34 +165,24 @@ export function useUserVaults(pollingInterval: number = 0): UseUserVaultsReturn 
 
         // Always update state when we have vaults, even if they appear unchanged
         // This ensures we have the latest on-chain state
-        setVaults(prevVaults => {
-          // Compare lengths first for quick check
-          if (prevVaults.length !== validVaults.length) {
-            console.log('[useUserVaults] Vaults changed (different length), updating state');
-            return validVaults;
-          }
+        // Only update if there are actual changes to prevent unnecessary re-renders
+        const currentVaults = vaultsRef.current;
+        const hasChanges = 
+          currentVaults.length !== validVaults.length ||
+          currentVaults.some((vault, i) => vault.toLowerCase() !== validVaults[i]?.toLowerCase());
 
-          // Compare each vault address
-          const hasChanges = prevVaults.some((vault, i) => vault.toLowerCase() !== validVaults[i]?.toLowerCase());
-
-          if (hasChanges) {
-            console.log('[useUserVaults] Vaults changed, updating state');
-            return validVaults;
-          }
-
-          // Always update state when we have vaults to ensure we have the latest on-chain state
-          if (validVaults.length > 0) {
-            console.log('[useUserVaults] Updating state with latest on-chain data');
-            return validVaults;
-          }
-
+        if (hasChanges) {
+          console.log('[useUserVaults] Vaults changed, updating state');
+          setVaults(validVaults);
+        } else {
           console.log('[useUserVaults] Vaults unchanged, skipping state update');
-          return prevVaults;
-        });
+        }
 
         const now = Date.now();
         setLastFetched(now);
-        setInitialLoadComplete(true);
+        if (isInitialLoad) {
+          setIsInitialized(true);
+        }
         console.log(`[useUserVaults] State updated at ${new Date(now).toISOString()}`);
 
       } catch (error) {
@@ -179,66 +198,74 @@ export function useUserVaults(pollingInterval: number = 0): UseUserVaultsReturn 
     } finally {
       console.log('[useUserVaults] Clearing loading states');
       if (isInitialLoad) {
-        setIsInitialLoading(false);
-        setInitialLoadComplete(true);
-      } else if (isBackground) {
-        setIsBackgroundRefreshing(false);
-      } else {
-        setIsRefreshing(false);
+        setIsLoading(false);
+        setIsInitialized(true);
+      } else if (isRefreshing) {
+        // Small delay to prevent UI flickering
+        setTimeout(() => setIsRefreshing(false), 300);
       }
     }
   }, [address, chainId, toast]);
 
   // Auto-fetch when address or chainId changes
   useEffect(() => {
-    if (!address || !chainId) return;
+    // Skip if we're already initialized
+    if (isInitialized) {
+      return;
+    }
 
-    // Initial fetch
-    fetchVaults();
-  }, [address, chainId, fetchVaults]);
+    // Use a small timeout to batch multiple rapid changes
+    const timer = setTimeout(() => {
+      if (!address) {
+        console.log('[useUserVaults] No address connected, skipping fetch');
+        setVaults([]);
+        setIsLoading(false);
+        return;
+      }
+      
+      if (!chainId) {
+        console.log('[useUserVaults] No chain ID detected, skipping fetch');
+        setVaults([]);
+        setIsLoading(false);
+        return;
+      }
 
-  // Set up polling after initial load
-  useEffect(() => {
-    if (!initialLoadComplete || !address || !chainId) return;
+      // Check if factory address exists for this chain
+      const factoryAddress = CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES]?.factory;
+      if (!factoryAddress) {
+        console.log(`[useUserVaults] No factory address found for chain ID: ${chainId}`);
+        setVaults([]);
+        setLastFetched(Date.now());
+        setIsLoading(false);
+        return;
+      }
 
-    console.log('[useUserVaults] Setting up polling...');
-    
-    // Initial setup of polling
-    let interval: NodeJS.Timeout;
-    
-    const poll = () => {
-      // Always poll to check for on-chain changes
-      console.log('[useUserVaults] Background refresh polling...');
-      fetchVaults(true, true); // Force refresh with isBackground=true
-    };
-    
-    // Set up the interval
-    interval = setInterval(poll, pollingInterval);
-    
-    // Initial poll after a short delay
-    const initialPollTimer = setTimeout(poll, 5000);
-    
-    // Cleanup function
-    return () => {
-      console.log('[useUserVaults] Cleaning up polling...');
-      if (interval) clearInterval(interval);
-      clearTimeout(initialPollTimer);
-    };
-  }, [initialLoadComplete, address, chainId, fetchVaults, pollingInterval]);
+      // Only fetch if not already loading
+      if (!isLoading && !isRefreshing) {
+        console.log(`[useUserVaults] Auto-fetching vaults for chain ${chainId}`);
+        fetchVaults();
+      }
+    }, 100); // Small debounce
+
+    return () => clearTimeout(timer);
+  }, [address, chainId, fetchVaults, isLoading, isRefreshing, isInitialized]);
+
+  // No auto-refreshing
 
   // Memoize the refetch function to prevent unnecessary re-renders
-  const refetch = useCallback(() => fetchVaults(true, false), [fetchVaults]);
+  const refetch = useCallback(async (force = false, isBackground = false) => {
+    if (isRefreshing && !force) return;
+    return fetchVaults(force, isBackground);
+  }, [fetchVaults, isRefreshing]);
 
-  // Only show refreshing state for non-background refreshes
-  const showRefreshing = isRefreshing && !isBackgroundRefreshing;
-  
   // Memoize the return value to prevent unnecessary re-renders
   return useMemo(() => ({
     vaults,
-    isInitialLoading,
-    isRefreshing: showRefreshing, 
+    isLoading: isLoading || isRefreshing,
+    isRefreshing,
+    isInitialized: !isLoading && !isRefreshing,
     setIsRefreshing,
     lastFetched,
     refetch,
-  }), [vaults, isInitialLoading, showRefreshing, lastFetched, refetch]);
+  }), [vaults, isLoading, isRefreshing, lastFetched, refetch]);
 }
