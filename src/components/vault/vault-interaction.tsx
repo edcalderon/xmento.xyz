@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { useToast } from '@/components/ui/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -30,8 +30,32 @@ export function VaultInteraction({ }: VaultInteractionProps): React.JSX.Element 
     handleTokenChange,
     refetchVaults,
     setVaultAddress,
-    lastFetched
+    lastFetched,
+    error: fetchError
   } = useVaultInteractions();
+  
+  const [error, setError] = useState<string | null>(null);
+  
+  // Update error state when fetchError changes
+  useEffect(() => {
+    if (fetchError) {
+      setError(fetchError.toString());
+    } else if (userVaults.length === 0 && !isLoadingVaults && isConnected && !isWrongNetwork) {
+      setError('No vaults found for this account');
+    } else {
+      setError(null);
+    }
+  }, [fetchError, userVaults, isLoadingVaults, isConnected, isWrongNetwork]);
+  
+  const handleRetry = async () => {
+    try {
+      await refetchVaults(true);
+      setError(null);
+    } catch (err) {
+      console.error('Error retrying vault fetch:', err);
+      setError('Failed to load vaults. Please try again.');
+    }
+  };
 
   const handleRefresh = useCallback(async () => {
     try {
@@ -142,6 +166,7 @@ export function VaultInteraction({ }: VaultInteractionProps): React.JSX.Element 
                       onSelectVault={setVaultAddress}
                       chainId={chainId}
                       isLoading={isLoadingVaults}
+                      onRetry={handleRetry}
                     />
                   </div>
                   <div className="flex justify-between items-center pt-2 mt-2 border-t">

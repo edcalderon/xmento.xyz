@@ -13,6 +13,7 @@ type UseUserVaultsReturn = {
   setIsRefreshing: (value: boolean) => void;
   lastFetched: number | null;
   refetch: (force?: boolean, isBackground?: boolean) => Promise<void>;
+  error: Error | null;
 };
 
 export function useUserVaults(): UseUserVaultsReturn {
@@ -34,11 +35,33 @@ export function useUserVaults(): UseUserVaultsReturn {
     vaultsRef.current = vaults;
   }, [vaults]);
 
+  // Check network connectivity
+  const checkNetworkStatus = useCallback(async () => {
+    try {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        throw new Error('No internet connection');
+      }
+      return true;
+    } catch (error) {
+      console.error('[useUserVaults] Network error:', error);
+      throw error;
+    }
+  }, []);
+
   const fetchVaults = useCallback(async (force = false, isBackground = false) => {
     // Skip if already in progress unless forced
     if (isLoading && !force) {
       console.log('[useUserVaults] Fetch already in progress, skipping...');
       return;
+    }
+    
+    // Check network status before proceeding
+    try {
+      await checkNetworkStatus();
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Network error';
+      setLastFetchError(new Error(errorMsg));
+      throw error;
     }
 
     const isInitialLoad = !isInitialized;
@@ -130,13 +153,21 @@ export function useUserVaults(): UseUserVaultsReturn {
 
       } catch (error) {
         console.error('[useUserVaults] Error in fetchVaults:', error);
-        setLastFetchError(error instanceof Error ? error : new Error('Unknown error'));
-        toast({
-          title: 'Error',
-          description: 'Failed to fetch vaults. Please try again.',
-          variant: 'destructive',
-        });
-        throw error; // Re-throw to allow error handling by the caller if needed
+        const errorMessage = error instanceof Error ? error.message : 'Failed to fetch vaults';
+        const enhancedError = new Error(errorMessage, { cause: error });
+        setLastFetchError(enhancedError);
+        
+        if (!isBackground) {
+          toast({
+            title: 'Error',
+            description: errorMessage.includes('network') ? 
+              'Network error. Please check your connection and try again.' : 
+              'Failed to fetch vaults. Please try again.',
+            variant: 'destructive',
+          });
+        }
+        
+        throw enhancedError;
       }
     } finally {
       console.log('[useUserVaults] Clearing loading states');
@@ -175,5 +206,6 @@ export function useUserVaults(): UseUserVaultsReturn {
     },
     lastFetched: lastFetched ? lastFetched.getTime() : null,
     refetch,
+    error: lastFetchError,
   };
 }

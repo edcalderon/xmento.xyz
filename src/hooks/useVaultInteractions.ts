@@ -34,8 +34,11 @@ export function useVaultInteractions() {
     isRefreshing: isLoadingVaults,
     refetch: refetchVaults,
     isInitialized: vaultsInitialized,
-    lastFetched
+    lastFetched,
+    error: fetchError
   } = useUserVaults();
+  
+  const [error, setError] = useState<string | null>(null);
 
   // Update isInitialized when vaults are loaded
   useEffect(() => {
@@ -265,6 +268,17 @@ export function useVaultInteractions() {
     setSelectedToken(token);
   }, []);
 
+  // Update error state when fetchError changes
+  useEffect(() => {
+    if (fetchError) {
+      setError(fetchError.message || 'Failed to fetch vaults');
+    } else if (userVaults.length === 0 && !isLoadingVaults && address && !isWrongNetwork) {
+      setError('No vaults found for this account');
+    } else {
+      setError(null);
+    }
+  }, [fetchError, userVaults, isLoadingVaults, address, isWrongNetwork]);
+
   return {
     // State
     selectedToken,
@@ -275,6 +289,7 @@ export function useVaultInteractions() {
     isLoadingVaults,
     userVaults,
     lastFetched,
+    error,
     // Actions
     handleCreateVault,
     handleTokenChange,
