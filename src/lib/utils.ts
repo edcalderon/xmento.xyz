@@ -26,7 +26,6 @@ export const shortenAddress = (address: string) => {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 };
 
-
 export const handleViewOnExplorer = (vaultAddress: string, chain?: Chain) => {
   if (typeof window === 'undefined') return;
 

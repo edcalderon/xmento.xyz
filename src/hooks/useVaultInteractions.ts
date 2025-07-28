@@ -63,9 +63,6 @@ export function useVaultInteractions() {
     setIsManager(address?.toLowerCase() === process.env.NEXT_PUBLIC_MANAGER_ADDRESS?.toLowerCase());
   }, [address]);
 
-  // Track the last toast ID to dismiss it later
-  const toastRef = useRef<string | null>(null);
-
   // Update network status when chain changes
   useEffect(() => {
     if (chain) {
@@ -89,10 +86,9 @@ export function useVaultInteractions() {
     return typeof value === 'string' && isAddress(value);
   }, []);
 
-  // Clear vault data for a specific address (no longer using local storage)
+  // No longer using local storage, so no need to clear anything
   const clearVaultData = useCallback((address: string) => {
-    // No-op since we're not using local storage anymore
-    console.log(`[useVaultInteractions] Clearing vault data for ${address} (local storage disabled)`);
+    console.log(`[useVaultInteractions] Local storage disabled, no data to clear for ${address}`);
   }, []);
 
   // Update the ref when userVaults changes or when loading state changes
@@ -144,33 +140,7 @@ export function useVaultInteractions() {
     }
   }, [address, clearVaultData, isClient]);
 
-  // Load vaults from local storage only after blockchain fetch fails
-  useEffect(() => {
-    if (!isClient || !address) return;
-
-    const loadFromLocalStorage = () => {
-      try {
-        const storedVaults = localStorage.getItem(`user_vaults_${address.toLowerCase()}`);
-        if (storedVaults) {
-          const parsedVaults = JSON.parse(storedVaults);
-          if (Array.isArray(parsedVaults) && parsedVaults.length > 0) {
-            // Only use local storage if we don't have any vaults from blockchain
-            if (userVaults.length === 0) {
-              console.log('[useVaultInteractions] Using vaults from local storage as fallback');
-              setVaultAddress(parsedVaults[0]);
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error loading vaults from local storage:', error);
-      }
-    };
-
-    // If we have no vaults after loading, try local storage as fallback
-    if (isInitialized && userVaults.length === 0) {
-      loadFromLocalStorage();
-    }
-  }, [isClient, address, userVaults.length, isInitialized]);
+  // No longer using local storage, only trust blockchain data
 
   // Handle vault creation
   const handleCreateVault = useCallback(async () => {
@@ -200,12 +170,6 @@ export function useVaultInteractions() {
       description: 'Please wait while we create your vault...',
       variant: 'default',
     });
-
-    const showExplorerLink = (hash: string, type: 'tx' | 'address') => {
-      if (typeof window === 'undefined') return;
-      const explorerUrl = chain?.blockExplorers?.default?.url || 'https://explorer.celo.org';
-      window.open(`${explorerUrl}/${type}/${hash}`, '_blank', 'noopener,noreferrer');
-    };
 
     try {
       // Track transaction state

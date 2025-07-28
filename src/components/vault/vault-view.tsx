@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, useChainId } from 'wagmi';
+import { useAccount, useReadContract  } from 'wagmi';
 import { formatEther } from 'viem';
 import { XmentoVaultABI } from './XmentoVaultABI';
 import { Button } from '@/components/ui/button';
@@ -47,7 +47,7 @@ export function VaultView({
     chainId,
     query: {
       enabled: !!vaultAddress && !!address,
-      refetchInterval: 10000,
+      refetchInterval: false,
     },
   });
 
@@ -59,7 +59,7 @@ export function VaultView({
     chainId,
     query: {
       enabled: !!vaultAddress,
-      refetchInterval: 10000,
+      refetchInterval: false,
     },
   });
 

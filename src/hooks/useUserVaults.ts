@@ -1,10 +1,9 @@
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useAccount } from 'wagmi';
 import { ethers } from 'ethers';
 import { useToast } from '@/components/ui/use-toast';
-import { CONTRACT_ADDRESSES, DEFAULT_CHAIN } from '@/config/contracts';
+import { CONTRACT_ADDRESSES } from '@/config/contracts';
 import { XmentoVaultFactoryV2ABI } from '@/components/vault/XmentoVaultFactoryV2ABI';
-import { useVaultRefresh } from './useVaultRefresh';
 
 type UseUserVaultsReturn = {
   vaults: `0x${string}`[];
@@ -17,34 +16,18 @@ type UseUserVaultsReturn = {
 };
 
 export function useUserVaults(): UseUserVaultsReturn {
-  const { address } = useAccount();
+  const { address, chain } = useAccount();
+  const chainId = chain?.id;
   const { toast } = useToast();
   const [vaults, setVaults] = useState<`0x${string}`[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [chainId, setChainId] = useState<number | undefined>();
+  const [isLoading, setIsLoading] = useState(true);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastFetched, setLastFetched] = useState<Date | null>(null);
   const [lastFetchError, setLastFetchError] = useState<Error | null>(null);
-  const [isInitialized, setIsInitialized] = useState<boolean>(false);
-  
+
   // Use refs to track the latest values without causing re-renders
   const vaultsRef = useRef(vaults);
-  const isMounted = useRef(true);
-
-  // Get current chain ID
-  useEffect(() => {
-    const getChainId = async () => {
-      if (typeof window !== 'undefined' && window.ethereum) {
-        try {
-          const provider = new ethers.BrowserProvider(window.ethereum);
-          const network = await provider.getNetwork();
-          setChainId(Number(network.chainId));
-        } catch (error) {
-          console.error('Error getting chain ID:', error);
-        }
-      }
-    };
-
-    getChainId();
-  }, []);
 
   // Update ref when vaults change
   useEffect(() => {
@@ -59,10 +42,6 @@ export function useUserVaults(): UseUserVaultsReturn {
     }
 
     const isInitialLoad = !isInitialized;
-    let loadingTimeout: NodeJS.Timeout | null = null;
-
-    // Set a safety timeout to ensure loading states are cleared
-    const SAFETY_TIMEOUT = 30000; // 30 seconds
 
     try {
       // Clear any previous errors
@@ -102,7 +81,7 @@ export function useUserVaults(): UseUserVaultsReturn {
         const errorMsg = `Factory address not found for network with chain ID: ${chainId}. Available chain IDs: ${Object.keys(CONTRACT_ADDRESSES).join(', ')}`;
         console.error('[useUserVaults]', errorMsg);
         setVaults([]);
-        setIsLoading(false);1
+        setIsLoading(false);
         return;
       }
 
@@ -147,6 +126,7 @@ export function useUserVaults(): UseUserVaultsReturn {
           setIsInitialized(true);
         }
         console.log(`[useUserVaults] State updated at ${new Date(now).toISOString()}`);
+        setLastFetched(new Date(now));
 
       } catch (error) {
         console.error('[useUserVaults] Error in fetchVaults:', error);
@@ -161,24 +141,15 @@ export function useUserVaults(): UseUserVaultsReturn {
     } finally {
       console.log('[useUserVaults] Clearing loading states');
       
-      // Clear the safety timeout
-      if (loadingTimeout) {
-        clearTimeout(loadingTimeout);
-      }
-      
+ 
       // Update error state
       setLastFetchError(lastFetchError);
       
       // Clear loading state
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   }, [address, chainId, toast]);
-
-  // Set up vault refresh with manual refresh by default
-  const { isRefreshing, lastFetched, refresh } = useVaultRefresh(
-    useCallback(() => fetchVaults(false, true), [fetchVaults]),
-    { initialInterval: 'manual' }
-  );
 
   // Initial fetch on mount and when address/chain changes
   useEffect(() => {
@@ -187,13 +158,10 @@ export function useUserVaults(): UseUserVaultsReturn {
     }
   }, [address, chainId, fetchVaults]);
 
-  // Create a wrapped refetch function that uses the refresh from useVaultRefresh
+  // Simple refetch function that always does a fresh fetch
   const refetch = useCallback(async (force = false, isBackground = false) => {
-    if (force) {
-      return fetchVaults(true, isBackground);
-    }
-    return refresh();
-  }, [fetchVaults, refresh]);
+    return fetchVaults(force, isBackground);
+  }, [fetchVaults]);
 
   return {
     vaults,
@@ -202,7 +170,7 @@ export function useUserVaults(): UseUserVaultsReturn {
     isInitialized,
     setIsRefreshing: (value: boolean) => {
       if (value) {
-        refresh();
+        refetch();
       }
     },
     lastFetched: lastFetched ? lastFetched.getTime() : null,
