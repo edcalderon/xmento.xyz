@@ -1,9 +1,10 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { useAccount } from 'wagmi';
+import { useAccount, usePublicClient } from 'wagmi';
 import { ethers } from 'ethers';
 import { useToast } from '@/components/ui/use-toast';
 import { CONTRACT_ADDRESSES } from '@/config/contracts';
 import { XmentoVaultFactoryV2ABI } from '@/components/vault/XmentoVaultFactoryV2ABI';
+import { useIsMobile } from './useIsMobile';
 
 type UseUserVaultsReturn = {
   vaults: `0x${string}`[];
@@ -20,12 +21,16 @@ export function useUserVaults(): UseUserVaultsReturn {
   const { address, chain } = useAccount();
   const chainId = chain?.id;
   const { toast } = useToast();
+  const publicClient = usePublicClient();
+  const isMobile = useIsMobile();
   const [vaults, setVaults] = useState<`0x${string}`[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
   const [lastFetchError, setLastFetchError] = useState<Error | null>(null);
+  const retryCountRef = useRef(0);
+  const MAX_RETRIES = 3;
 
   // Use refs to track the latest values without causing re-renders
   const vaultsRef = useRef(vaults);
@@ -35,18 +40,25 @@ export function useUserVaults(): UseUserVaultsReturn {
     vaultsRef.current = vaults;
   }, [vaults]);
 
-  // Check network connectivity
+  // Check network connectivity with better mobile support
   const checkNetworkStatus = useCallback(async () => {
     try {
       if (typeof navigator !== 'undefined' && !navigator.onLine) {
         throw new Error('No internet connection');
       }
+      
+      // Additional mobile-specific checks
+      if (isMobile && !window.ethereum) {
+        console.warn('[useUserVaults] window.ethereum not detected on mobile');
+        // Don't fail on mobile if ethereum isn't detected yet
+      }
+      
       return true;
     } catch (error) {
       console.error('[useUserVaults] Network error:', error);
       throw error;
     }
-  }, []);
+  }, [isMobile]);
 
   const fetchVaults = useCallback(async (force = false, isBackground = false) => {
     // Skip if already in progress unless forced
@@ -97,7 +109,16 @@ export function useUserVaults(): UseUserVaultsReturn {
         currentVaults: vaultsRef.current
       });
 
-      const provider = new ethers.BrowserProvider(window.ethereum);
+      // Check if publicClient is available
+      if (!publicClient) {
+        console.error('[useUserVaults] publicClient is not available');
+        setVaults([]);
+        setIsLoading(false);
+        return;
+      }
+
+      // Use public client from wagmi instead of directly accessing window.ethereum
+      const provider = new ethers.BrowserProvider(publicClient.transport);
       const factoryAddress = CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES]?.factory as `0x${string}`;
 
       if (!factoryAddress) {
@@ -157,16 +178,28 @@ export function useUserVaults(): UseUserVaultsReturn {
         const enhancedError = new Error(errorMessage, { cause: error });
         setLastFetchError(enhancedError);
         
+        // Implement retry logic for mobile
+        if (isMobile && retryCountRef.current < MAX_RETRIES) {
+          retryCountRef.current += 1;
+          console.log(`[useUserVaults] Retry attempt ${retryCountRef.current} of ${MAX_RETRIES}`);
+          await new Promise(resolve => setTimeout(resolve, 1000 * retryCountRef.current));
+          return fetchVaults(force, isBackground);
+        }
+        
         if (!isBackground) {
           toast({
             title: 'Error',
-            description: errorMessage.includes('network') ? 
-              'Network error. Please check your connection and try again.' : 
-              'Failed to fetch vaults. Please try again.',
+            description: isMobile 
+              ? 'Having trouble connecting to your wallet. Please ensure your wallet app is open and try again.'
+              : errorMessage.includes('network') 
+                ? 'Network error. Please check your connection and try again.' 
+                : 'Failed to fetch vaults. Please try again.',
             variant: 'destructive',
           });
         }
         
+        // Reset retry counter after max retries
+        retryCountRef.current = 0;
         throw enhancedError;
       }
     } finally {

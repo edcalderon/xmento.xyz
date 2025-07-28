@@ -27,24 +27,34 @@ if (!projectId) {
   console.warn('NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is not set. WalletConnect will not work properly.');
 }
 
-export const config = createConfig({
-  chains: [celoMainnet, celoTestnet],
-  connectors: [
-    injected({
-      target: 'metaMask',
-    }),
-    walletConnect({
-      projectId,
-      showQrModal: true,
-    }),
-    metaMask(),
-  ],
-  ssr: true,
-  transports: {
-    [celoMainnet.id]: http(),
-    [celoTestnet.id]: http(),
-  },
-});
+// Create a singleton instance of the config
+let wagmiConfig: any;
+
+export function getConfig() {
+  if (!wagmiConfig) {
+    wagmiConfig = createConfig({
+      chains: [celoMainnet, celoTestnet],
+      connectors: [
+        injected({
+          target: 'metaMask',
+        }),
+        walletConnect({
+          projectId,
+          showQrModal: true,
+        }),
+        metaMask(),
+      ],
+      ssr: true,
+      transports: {
+        [celoMainnet.id]: http(),
+        [celoTestnet.id]: http(),
+      },
+    });
+  }
+  return wagmiConfig;
+}
+
+export const config = getConfig();
 
 // Export chain IDs for easy access
 export const CHAIN_IDS = {
