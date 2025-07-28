@@ -4,6 +4,8 @@ export interface AccountInfo {
     address: string;
     formattedAddress?: string;
     ensName?: string;
+    avatar?: string;
+    isActive?: boolean;
 }
 
 export type Account = string | AccountInfo;
@@ -50,6 +52,7 @@ export interface WalletConnectHandlers {
   handleAddAccount: () => Promise<void>;
   isSupportedChain: boolean;
   networkInfo: Record<number, NetworkInfo>;
+  accounts: AccountInfo[];
   otherAccounts: AccountInfo[];
   formattedAddress: string;
 }
@@ -72,6 +75,7 @@ export interface WalletViewProps {
   handleSwitchAccount?: (address: string) => void;
   isSupportedChain?: boolean;
   networkInfo?: Record<number, NetworkInfo>;
+  accounts?: AccountInfo[];
   otherAccounts?: Account[];
   handleAddAccount?: () => void;
   formattedAddress?: string;

@@ -11,12 +11,12 @@ import { useToast } from '@/components/ui/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 
-interface AdminViewProps {
+interface AdminControlsCardProps {
   vaultAddress: `0x${string}` | null;
   chainId: number;
 }
 
-export function AdminView({ vaultAddress, chainId }: AdminViewProps) {
+export function AdminControlsCard({ vaultAddress, chainId }: AdminControlsCardProps) {
   const { toast } = useToast();
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [vaultBalance, setVaultBalance] = useState<bigint>(BigInt(0));

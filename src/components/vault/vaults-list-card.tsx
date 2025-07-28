@@ -1,8 +1,8 @@
 import React from 'react';
-import { VaultStatusList } from './vault-status-list';
+import { VaultStatusList } from './vault-status-scroll-area';
 import { Loader2 } from 'lucide-react';
 
-interface VaultsCardProps {
+interface VaultsListCardProps {
   userVaults: any[];
   vaultAddress: `0x${string}` | null;
   setVaultAddress: (address: `0x${string}`) => void;
@@ -15,7 +15,7 @@ interface VaultsCardProps {
   handleRetry: () => void;
 }
 
-export function VaultsCard({
+export function VaultsListCard({
   userVaults,
   vaultAddress,
   setVaultAddress,
@@ -26,7 +26,7 @@ export function VaultsCard({
   handleRefresh,
   handleCreateVaultWrapper,
   handleRetry
-}: VaultsCardProps): React.JSX.Element {
+}: VaultsListCardProps): React.JSX.Element {
   return (
     <div className="bg-card rounded-lg border p-4 flex flex-col h-[400px] lg:h-[500px] lg:min-h-[400px]">
       <div className="flex justify-between items-center mb-4">

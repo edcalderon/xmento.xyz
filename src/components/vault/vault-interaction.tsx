@@ -4,12 +4,12 @@ import React, { useCallback, useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { useToast } from '@/components/ui/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { VaultView } from './vault-view';
-import { AdminView } from './admin-view';
+import { VaultOperationsCard } from './vault-operations-card';
+import { AdminControlsCard } from './admin-contols-card';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, Wallet, Loader2 } from 'lucide-react';
-import { VaultsCard } from './vaults-card';
+import { AlertCircle, Wallet } from 'lucide-react';
+import { VaultsListCard } from './vaults-list-card';
 import { useVaultInteractions } from '@/hooks/useVaultInteractions';
 
 interface VaultInteractionProps { }
@@ -142,7 +142,7 @@ export function VaultInteraction({ }: VaultInteractionProps): React.JSX.Element 
             <TabsContent value="vault">
               <>
                 <div className="lg:col-span-1 lg:col-start-1 flex flex-col space-y-4">
-                  <VaultsCard
+                  <VaultsListCard
                     userVaults={userVaults}
                     vaultAddress={vaultAddress}
                     setVaultAddress={setVaultAddress}
@@ -163,7 +163,7 @@ export function VaultInteraction({ }: VaultInteractionProps): React.JSX.Element 
                     <CardTitle>Vault Operations</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <VaultView
+                    <VaultOperationsCard
                       vaultAddress={vaultAddress}
                       isManager={isManager}
                       chainId={chainId}
@@ -183,7 +183,7 @@ export function VaultInteraction({ }: VaultInteractionProps): React.JSX.Element 
                   <CardTitle>Admin Controls</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <AdminView
+                  <AdminControlsCard
                     vaultAddress={vaultAddress}
                     chainId={chainId}
                   />

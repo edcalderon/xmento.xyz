@@ -13,7 +13,7 @@ import { AlertCircle } from 'lucide-react';
 
 type TokenSymbol = 'cUSD' | 'cEUR' | 'cREAL';
 
-interface VaultViewProps {
+interface VaultOperationsCardProps {
   vaultAddress: `0x${string}` | null;
   isManager: boolean;
   chainId: number;
@@ -23,7 +23,7 @@ interface VaultViewProps {
   isRefreshing: boolean;
 }
 
-export function VaultView({
+export function VaultOperationsCard({
   vaultAddress,
   isManager,
   chainId,
@@ -31,7 +31,7 @@ export function VaultView({
   onTokenChange,
   isWrongNetwork,
   isRefreshing,
-}: VaultViewProps) {
+}: VaultOperationsCardProps) {
   const { address } = useAccount();
   const { toast } = useToast();
   const [depositAmount, setDepositAmount] = useState('');

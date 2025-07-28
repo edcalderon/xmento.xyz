@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useToast } from "@/components/ui/use-toast";
 import { useWalletConnection } from "@/hooks/useWalletConnection";
-import { useAccount, useSwitchChain, useChainId } from 'wagmi';
+import { useAccount, useSwitchChain, useChainId, useDisconnect } from 'wagmi';
 import { copyToClipboard, shortenAddress } from '@/lib/utils';
 import type {  NetworkID } from '@/types/network';
 import type { WalletConnectHandlers, AccountInfo, EIP1193Provider } from '@/types/wallet';
@@ -11,10 +11,11 @@ import { SUPPORTED_CHAINS, NETWORK_INFO } from '@/lib/wagmi.config';
 
 export function useWalletConnectHandlers(): WalletConnectHandlers {
   const { toast } = useToast();
-  const { address: account, isConnected, disconnect, connect } = useWalletConnection();
+  const { address: account, isConnected, disconnect: disconnectWallet, connect } = useWalletConnection();
   const { connector } = useAccount();
   const { switchChain } = useSwitchChain();
   const currentChainId = useChainId();
+  const { disconnect: wagmiDisconnect } = useDisconnect();
 
   // State management
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -26,7 +27,7 @@ export function useWalletConnectHandlers(): WalletConnectHandlers {
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [isNetworkModalOpen, setIsNetworkModalOpen] = useState(false);
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
-  const [otherAccounts, setOtherAccounts] = useState<AccountInfo[]>([]);
+  const [accounts, setAccounts] = useState<AccountInfo[]>([]);
 
   // Check if current chain is supported
   const isSupportedChain = currentChainId ? SUPPORTED_CHAINS.some(chain => chain.id === currentChainId) : false;
@@ -83,11 +84,15 @@ export function useWalletConnectHandlers(): WalletConnectHandlers {
 
   // Handle disconnect
   const handleDisconnect = useCallback(async () => {
-    if (!disconnect || isDisconnecting) return;
+    if (isDisconnecting) return;
 
     setIsDisconnecting(true);
     try {
-      await disconnect();
+      if (disconnectWallet) {
+        await disconnectWallet();
+      } else {
+        await wagmiDisconnect();
+      }
       toast({
         title: 'Disconnected',
         description: 'Successfully disconnected from wallet',
@@ -102,7 +107,7 @@ export function useWalletConnectHandlers(): WalletConnectHandlers {
     } finally {
       setIsDisconnecting(false);
     }
-  }, [disconnect, isDisconnecting, toast]);
+  }, [disconnectWallet, isDisconnecting, toast, wagmiDisconnect]);
 
   // Handle address copy
   const handleCopyAddress = useCallback((): void => {
@@ -150,16 +155,26 @@ export function useWalletConnectHandlers(): WalletConnectHandlers {
 
     setIsSwitchingAccount(true);
     try {
-      // Type assertion for switchAccount as it might not be available on all connectors
-      const switchAccount = (connector as any).switchAccount;
-      if (typeof switchAccount === 'function') {
-        await switchAccount(address);
-      } else {
-        // Fallback for connectors that don't support switchAccount
-        await disconnect();
-        // Connect using the default connection method
-        await connect('injected');
+      // For MetaMask and injected providers, we can use the provider to switch accounts
+      const provider = await connector.getProvider();
+      if (provider && typeof provider === 'object' && 'request' in provider && 
+          typeof (provider as any).request === 'function') {
+        // Request account switch
+        await (provider as any).request({
+          method: 'wallet_requestPermissions',
+          params: [{
+            eth_accounts: {}
+          }]
+        });
       }
+      
+      // Update accounts list with the new active account
+      const updatedAccounts = accounts.map(acc => ({
+        ...acc,
+        isActive: acc.address.toLowerCase() === address.toLowerCase()
+      }));
+      setAccounts(updatedAccounts);
+      
       toast({
         title: 'Account switched',
         description: 'Successfully switched to new account',
@@ -176,12 +191,116 @@ export function useWalletConnectHandlers(): WalletConnectHandlers {
       setIsAccountDropdownOpen(false);
       setIsAccountModalOpen(false);
     }
-  }, [connector, disconnect, connect, toast]);
+  }, [connector, accounts]);
+  
+  // Track account changes
+  useEffect(() => {
+    const handleAccountsChanged = (newAccounts: string[]) => {
+      if (newAccounts.length === 0) {
+        // Handle the case where the user disconnects all accounts
+        if (disconnectWallet) {
+          disconnectWallet();
+        } else if (wagmiDisconnect) {
+          wagmiDisconnect();
+        }
+        return;
+      }
+      
+      // Get the current active account
+      const currentAccount = account?.toLowerCase();
+      
+      // Create a map of existing accounts for quick lookup
+      const existingAccounts = new Map(accounts.map(acc => [acc.address.toLowerCase(), acc]));
+      
+      // Update or add accounts
+      const updatedAccounts = newAccounts.map(addr => {
+        const addrLower = addr.toLowerCase();
+        const existing = existingAccounts.get(addrLower);
+        
+        return {
+          address: addr as `0x${string}`,
+          isActive: addrLower === currentAccount,
+          ensName: existing?.ensName,
+          avatar: existing?.avatar,
+          formattedAddress: existing?.formattedAddress || `${addr.slice(0, 6)}...${addr.slice(-4)}`
+        };
+      });
+      
+      setAccounts(updatedAccounts);
+    };
+    
+    // Set up the event listener for account changes
+    const setupAccountListener = async () => {
+      if (!connector) return;
+      
+      try {
+        const provider = await connector.getProvider();
+        if (provider && typeof provider === 'object' && 'on' in provider && 
+            typeof (provider as any).on === 'function') {
+          (provider as any).on('accountsChanged', handleAccountsChanged);
+        }
+      } catch (error) {
+        console.error('Error setting up account listener:', error);
+      }
+    };
+    
+    setupAccountListener();
+    
+    // Clean up
+    return () => {
+      if (connector) {
+        connector.getProvider().then(provider => {
+          if (provider && typeof provider === 'object' && 'removeListener' in provider && 
+              typeof (provider as any).removeListener === 'function') {
+            (provider as any).removeListener('accountsChanged', handleAccountsChanged);
+          }
+        }).catch(console.error);
+      }
+    };
+  }, [connector, account, disconnectWallet]);
+  
+  // Update accounts when the connected account changes
+  useEffect(() => {
+    if (!account) {
+      setAccounts(prev => prev.map(acc => ({ ...acc, isActive: false })));
+      return;
+    }
+    
+    const accountLower = account.toLowerCase();
+    
+    // Update the accounts list with the new active account
+    setAccounts(prev => {
+      // If the account is already in the list, just update the active status
+      if (prev.some(acc => acc.address.toLowerCase() === accountLower)) {
+        return prev.map(acc => ({
+          ...acc,
+          isActive: acc.address.toLowerCase() === accountLower
+        }));
+      }
+      
+      // Otherwise, add the new account
+      return [
+        ...prev.filter(acc => acc.address.toLowerCase() !== accountLower),
+        {
+          address: account,
+          isActive: true,
+          ensName: undefined,
+          avatar: undefined,
+          formattedAddress: `${account.slice(0, 6)}...${account.slice(-4)}`
+        }
+      ];
+    });
+  }, [account]);
 
   const formattedAddress = useMemo(() => {
     if (!account) return '';
     return shortenAddress(account);
   }, [account]);
+
+  // Derive otherAccounts from accounts (all non-active accounts)
+  const otherAccounts = useMemo(() => 
+    accounts.filter(acc => acc.address.toLowerCase() !== account?.toLowerCase())
+  , [accounts, account]);
 
   return {
     isModalOpen,
@@ -210,6 +329,7 @@ export function useWalletConnectHandlers(): WalletConnectHandlers {
     handleAddAccount,
     isSupportedChain,
     networkInfo: NETWORK_INFO,
+    accounts,
     otherAccounts,
     formattedAddress,
   };
