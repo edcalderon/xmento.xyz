@@ -120,92 +120,112 @@ export function VaultView({
   }
 
   return (
-    <div className="grid gap-6">
-      {/* Vault Overview */}
-      <Card className={isLoading ? 'opacity-50 pointer-events-none' : ''}>
-        <CardHeader>
-          <CardTitle>Vault: {vaultAddress}</CardTitle>
-          <CardDescription>
+    <div className="w-full max-w-full overflow-x-hidden">
+      <Card className={`w-full mb-6 transition-colors ${vaultAddress ? 'bg-primary/5 border-primary' : ''} ${isLoading ? 'opacity-50 pointer-events-none' : ''}`}>
+        <CardHeader className="p-4 md:p-6">
+          <CardTitle className="text-lg md:text-xl">Vault: <span className="truncate block">{vaultAddress}</span></CardTitle>
+          <CardDescription className="text-sm md:text-base">
             Manage your assets in this Xmento Vault
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="grid gap-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Total Value Locked</span>
-              <span className="font-mono">{formattedTVL}</span>
+        <CardContent className="p-4 md:p-6 pt-0">
+          <div className="grid gap-3 w-full">
+            <div className="flex flex-wrap items-center justify-between gap-2 w-full">
+              <span className="text-sm font-medium whitespace-nowrap">Total Value Locked</span>
+              <span className="font-mono text-sm md:text-base break-all text-right">{formattedTVL}</span>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Your Balance</span>
-              <span className="font-mono">{formattedBalance}</span>
+            <div className="flex flex-wrap items-center justify-between gap-2 w-full">
+              <span className="text-sm font-medium whitespace-nowrap">Your Balance</span>
+              <span className="font-mono text-sm md:text-base break-all text-right">{formattedBalance}</span>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Deposit Form */}
-      <Card className={isLoading ? 'opacity-50 pointer-events-none' : ''}>
-        <CardHeader>
-          <CardTitle>Deposit</CardTitle>
-          <CardDescription>Add funds to your vault</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleDeposit} className="space-y-4">
-            <div className="grid gap-2">
-              <div className="flex items-center space-x-2">
-                <Input
-                  type="number"
-                  placeholder="0.00"
-                  value={depositAmount}
-                  onChange={(e) => setDepositAmount(e.target.value)}
-                  step="0.01"
-                  min="0"
-                  disabled={isWrongNetwork}
-                />
-                <select
-                  value={selectedToken}
-                  onChange={(e) => onTokenChange(e.target.value as TokenSymbol)}
-                  className="px-3 py-2 border rounded-md"
-                  disabled={isWrongNetwork}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+        <Card className={`w-full ${isLoading ? 'opacity-50 pointer-events-none' : ''}`}>
+          <CardHeader className="p-4 md:p-6 pb-2">
+            <CardTitle className="text-lg md:text-xl">Deposit</CardTitle>
+            <CardDescription className="text-sm md:text-base">Add funds to your vault</CardDescription>
+          </CardHeader>
+          <CardContent className="p-4 md:p-6 pt-0">
+            <form onSubmit={handleDeposit} className="w-full">
+              <div className="space-y-3 w-full">
+                <div className="flex items-center gap-2 w-full">
+                  <div className="flex-1">
+                    <Input
+                      id="deposit-amount"
+                      type="number"
+                      placeholder="0.00"
+                      value={depositAmount}
+                      onChange={(e) => setDepositAmount(e.target.value)}
+                      step="0.01"
+                      min="0"
+                      disabled={isWrongNetwork}
+                      className="w-full"
+                    />
+                  </div>
+                  <select
+                    value={selectedToken}
+                    onChange={(e) => onTokenChange(e.target.value as TokenSymbol)}
+                    className="px-3 py-2 border rounded-md bg-transparent h-10 w-24"
+                    disabled={isWrongNetwork}
+                  >
+                    <option value="cUSD">cUSD</option>
+                    <option value="cEUR">cEUR</option>
+                    <option value="cREAL">cREAL</option>
+                  </select>
+                </div>
+                <Button 
+                  type="submit" 
+                  disabled={!vaultAddress || isWrongNetwork}
+                  className="w-full"
                 >
-                  <option value="cUSD">cUSD</option>
-                  <option value="cEUR">cEUR</option>
-                  <option value="cREAL">cREAL</option>
-                </select>
+                  Deposit
+                </Button>
               </div>
-              <Button type="submit" disabled={!vaultAddress || isWrongNetwork}>
-                Deposit
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+            </form>
+          </CardContent>
+        </Card>
 
-      {/* Withdraw Form */}
-      <Card className={isLoading ? 'opacity-50 pointer-events-none' : ''}>
-        <CardHeader>
-          <CardTitle>Withdraw</CardTitle>
-          <CardDescription>Withdraw funds from your vault</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleWithdraw} className="space-y-4">
-            <div className="grid gap-2">
-              <Input
-                type="number"
-                placeholder="0.00"
-                value={withdrawAmount}
-                onChange={(e) => setWithdrawAmount(e.target.value)}
-                step="0.01"
-                min="0"
-                disabled={isWrongNetwork}
-              />
-              <Button type="submit" variant="outline" disabled={!vaultAddress || isWrongNetwork}>
-                Withdraw
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+        <Card className={`w-full ${isLoading ? 'opacity-50 pointer-events-none' : ''}`}>
+          <CardHeader className="p-4 md:p-6 pb-2">
+            <CardTitle className="text-lg md:text-xl">Withdraw</CardTitle>
+            <CardDescription className="text-sm md:text-base">Withdraw funds from your vault</CardDescription>
+          </CardHeader>
+          <CardContent className="p-4 md:p-6 pt-0">
+            <form onSubmit={handleWithdraw} className="w-full">
+              <div className="space-y-3 w-full">
+                <div className="flex items-center gap-2 w-full">
+                  <div className="flex-1">
+                    <Input
+                      id="withdraw-amount"
+                      type="number"
+                      placeholder="0.00"
+                      value={withdrawAmount}
+                      onChange={(e) => setWithdrawAmount(e.target.value)}
+                      step="0.01"
+                      min="0"
+                      disabled={isWrongNetwork}
+                      className="w-full"
+                    />
+                  </div>
+                  <div className="px-3 py-2 border rounded-md h-10 w-24 flex items-center justify-center text-sm text-muted-foreground">
+                    {selectedToken}
+                  </div>
+                </div>
+                <Button 
+                  type="submit" 
+                  disabled={!vaultAddress || isWrongNetwork}
+                  className="w-full"
+                >
+                  Withdraw
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
 
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-10">

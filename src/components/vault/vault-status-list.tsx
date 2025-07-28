@@ -76,7 +76,6 @@ export function VaultStatusList({
     
     return (
         <div className="h-full flex flex-col relative">
-            
             <ScrollArea 
                 ref={scrollAreaRef}
                 className="flex-1 w-full px-2 touch-pan-y"

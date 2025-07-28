@@ -5,11 +5,11 @@ import { useAccount } from 'wagmi';
 import { useToast } from '@/components/ui/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { VaultView } from './vault-view';
-import { AdminView } from './AdminView';
+import { AdminView } from './admin-view';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, Wallet, Loader2 } from 'lucide-react';
-import { VaultStatusList } from './vault-status-list';
+import { VaultsCard } from './vaults-card';
 import { useVaultInteractions } from '@/hooks/useVaultInteractions';
 
 interface VaultInteractionProps { }
@@ -33,9 +33,9 @@ export function VaultInteraction({ }: VaultInteractionProps): React.JSX.Element 
     lastFetched,
     error: fetchError
   } = useVaultInteractions();
-  
+
   const [error, setError] = useState<string | null>(null);
-  
+
   // Update error state when fetchError changes
   useEffect(() => {
     if (fetchError) {
@@ -46,7 +46,7 @@ export function VaultInteraction({ }: VaultInteractionProps): React.JSX.Element 
       setError(null);
     }
   }, [fetchError, userVaults, isLoadingVaults, isConnected, isWrongNetwork]);
-  
+
   const handleRetry = async () => {
     try {
       await refetchVaults(true);
@@ -128,93 +128,56 @@ export function VaultInteraction({ }: VaultInteractionProps): React.JSX.Element 
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Vault Manager</h1>
-      </div>
 
       {/* Vault List and Operations Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-
         <div className="lg:col-span-2">
+
           <Tabs defaultValue="vault" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="vault">Vault Operations</TabsTrigger>
-              <TabsTrigger value="admin" disabled={!isManager}>
-                Admin Controls
-              </TabsTrigger>
+            <TabsList className={`grid w-full ${isManager ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              <TabsTrigger value="vault">Vault Management</TabsTrigger>
+              {isManager && <TabsTrigger value="admin">Admin Controls</TabsTrigger>}
             </TabsList>
-
             <TabsContent value="vault">
-              <div className="lg:col-span-1 lg:col-start-1 flex flex-col space-y-4">
-                <div className="bg-card rounded-lg border p-4 flex flex-col h-[400px] lg:h-[500px] lg:min-h-[400px]">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-medium">Your Vaults</h3>
-                    <button
-                      onClick={handleRefresh}
-                      disabled={isLoadingVaults}
-                      className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-                      title="Refresh vaults"
-                    >
-                      <Loader2 className={`h-4 w-4 ${isLoadingVaults ? 'animate-spin' : ''}`} />
-                    </button>
-                  </div>
-                  <div className="flex-1 min-h-0">
-                    <VaultStatusList
-                      vaults={userVaults}
-                      selectedVault={vaultAddress}
-                      onSelectVault={setVaultAddress}
-                      chainId={chainId}
-                      isLoading={isLoadingVaults}
-                      onRetry={handleRetry}
-                    />
-                  </div>
-                  <div className="flex justify-between items-center pt-2 mt-2 border-t">
-                    <span className="text-xs text-muted-foreground">{userVaults.length} Vault{userVaults.length !== 1 ? 's' : ''} Found</span>
-                    <span className="text-xs text-muted-foreground">
-                      {lastFetched ? `Updated ${new Date(lastFetched).toLocaleTimeString()}` : 'Never updated'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="mt-4 p-4">
-                  <button
-                    onClick={handleCreateVaultWrapper}
-                    disabled={isCreatingVault}
-                    className="w-full bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
-                  >
-                    {isCreatingVault ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Creating...
-                      </>
-                    ) : (
-                      'Create New Vault'
-                    )}
-                  </button>
-                </div>
-
-              </div>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Vault Operations</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <VaultView
+              <>
+                <div className="lg:col-span-1 lg:col-start-1 flex flex-col space-y-4">
+                  <VaultsCard
+                    userVaults={userVaults}
                     vaultAddress={vaultAddress}
-                    isManager={isManager}
+                    setVaultAddress={setVaultAddress}
                     chainId={chainId}
-                    selectedToken={selectedToken}
-                    onTokenChange={handleTokenChange}
-                    isWrongNetwork={isWrongNetwork}
-                    isRefreshing={isLoadingVaults}
+                    isLoadingVaults={isLoadingVaults}
+                    isCreatingVault={isCreatingVault}
+                    lastFetched={lastFetched}
+                    handleRefresh={handleRefresh}
+                    handleCreateVaultWrapper={handleCreateVaultWrapper}
+                    handleRetry={handleRetry}
                   />
-                </CardContent>
-              </Card>
+                </div>
+
+                <div className="w-full h-8" />
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Vault Operations</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <VaultView
+                      vaultAddress={vaultAddress}
+                      isManager={isManager}
+                      chainId={chainId}
+                      selectedToken={selectedToken}
+                      onTokenChange={handleTokenChange}
+                      isWrongNetwork={isWrongNetwork}
+                      isRefreshing={isLoadingVaults}
+                    />
+                  </CardContent>
+                </Card>
+              </>
             </TabsContent>
 
-            <TabsContent value="admin">
+            {isManager && <TabsContent value="admin">
               <Card>
                 <CardHeader>
                   <CardTitle>Admin Controls</CardTitle>
@@ -226,8 +189,9 @@ export function VaultInteraction({ }: VaultInteractionProps): React.JSX.Element 
                   />
                 </CardContent>
               </Card>
-            </TabsContent>
+            </TabsContent>}
           </Tabs>
+
         </div>
       </div>
     </div>
