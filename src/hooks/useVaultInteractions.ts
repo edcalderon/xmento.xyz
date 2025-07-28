@@ -99,29 +99,31 @@ export function useVaultInteractions() {
   useEffect(() => {
     if (!isClient) return;
 
-    // Only proceed if we're not loading
-    if (!isLoadingVaults && vaultsInitialized) {
-      if (userVaults.length > 0) {
-        console.log('[useVaultInteractions] Received vaults from blockchain:', userVaults);
-        
-        // Store the first vault address as the last used
-        lastAddressRef.current = userVaults[0];
-        
-        // If we have a newly created vault, prioritize selecting it
-        if (newlyCreatedVault && userVaults.includes(newlyCreatedVault)) {
-          console.log('[useVaultInteractions] Selecting newly created vault:', newlyCreatedVault);
-          setVaultAddress(newlyCreatedVault);
-          setNewlyCreatedVault(null);
-        } 
-        // If no vault is selected or the selected vault is not in the list, select the first one
-        else if (!vaultAddress || !userVaults.includes(vaultAddress)) {
-          console.log('[useVaultInteractions] Selecting first vault from blockchain:', userVaults[0]);
-          setVaultAddress(userVaults[0]);
-        }
-      } else if (vaultsInitialized) {
-        // Only log 'No vaults found' after we've fully initialized and confirmed there are no vaults
-        console.log('[useVaultInteractions] No vaults found on blockchain after initialization');
+    // Only proceed if we're not loading and vaults are initialized
+    if (isLoadingVaults || !vaultsInitialized) return;
+
+    if (userVaults.length > 0) {
+      console.log('[useVaultInteractions] Received vaults from blockchain:', userVaults);
+      
+      // Store the first vault address as the last used
+      lastAddressRef.current = userVaults[0];
+      
+      // If we have a newly created vault, prioritize selecting it
+      if (newlyCreatedVault && userVaults.includes(newlyCreatedVault)) {
+        console.log('[useVaultInteractions] Selecting newly created vault:', newlyCreatedVault);
+        setVaultAddress(newlyCreatedVault);
+        setNewlyCreatedVault(null);
+        return;
+      } 
+      
+      // If no vault is selected or the selected vault is not in the list, select the first one
+      if (!vaultAddress || !userVaults.some(v => v.toLowerCase() === vaultAddress.toLowerCase())) {
+        console.log('[useVaultInteractions] Selecting first vault from blockchain:', userVaults[0]);
+        setVaultAddress(userVaults[0]);
       }
+    } else if (vaultsInitialized) {
+      console.log('[useVaultInteractions] No vaults found on blockchain after initialization');
+      setVaultAddress(null);
     }
   }, [userVaults, isClient, address, newlyCreatedVault, vaultAddress, isLoadingVaults, vaultsInitialized]);
 

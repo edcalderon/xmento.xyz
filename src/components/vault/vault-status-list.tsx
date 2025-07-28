@@ -23,17 +23,27 @@ export function VaultStatusList({
     chainId,
     isLoading = false,
 }: VaultStatusListProps) {
+    // Check if we have any vaults to display
+    const hasVaults = vaults.length > 0;
+    
+    // Don't render anything if we're still loading and don't have vaults yet
+    if (isLoading && !hasVaults) {
+        return (
+            <div className="h-full flex items-center justify-center p-6">
+                <div className="flex flex-col items-center space-y-2">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">Loading vaults...</p>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="h-full flex flex-col">
             <ScrollArea className="flex-1 w-full px-2">
                 <div className="space-y-2">
-                    {isLoading && !vaults.length ? (
-                        <div className="flex flex-col items-center justify-center p-6 space-y-4">
-                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                            <p className="text-sm text-muted-foreground">Loading vaults...</p>
-                        </div>
-                    ) : vaults.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center p-6 text-center space-y-4">
+                    {!hasVaults ? (
+                        <div className="flex flex-col items-center justify-center p-6 text-center space-y-2">
                             <p className="text-sm text-muted-foreground">
                                 No vaults found
                             </p>

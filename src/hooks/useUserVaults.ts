@@ -102,7 +102,7 @@ export function useUserVaults(): UseUserVaultsReturn {
         const errorMsg = `Factory address not found for network with chain ID: ${chainId}. Available chain IDs: ${Object.keys(CONTRACT_ADDRESSES).join(', ')}`;
         console.error('[useUserVaults]', errorMsg);
         setVaults([]);
-        setIsLoading(false);
+        setIsLoading(false);1
         return;
       }
 
@@ -129,9 +129,6 @@ export function useUserVaults(): UseUserVaultsReturn {
 
         console.log(`[useUserVaults] Found ${validVaults.length} valid vault(s):`, validVaults);
 
-        // Always update state when we have vaults, even if they appear unchanged
-        // This ensures we have the latest on-chain state
-        // Only update if there are actual changes to prevent unnecessary re-renders
         const currentVaults = vaultsRef.current;
         const hasChanges = 
           currentVaults.length !== validVaults.length ||
