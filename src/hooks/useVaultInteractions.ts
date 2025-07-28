@@ -89,61 +89,41 @@ export function useVaultInteractions() {
     return typeof value === 'string' && isAddress(value);
   }, []);
 
-  // Clear vault data for a specific address
+  // Clear vault data for a specific address (no longer using local storage)
   const clearVaultData = useCallback((address: string) => {
-    if (!isClient) return;
+    // No-op since we're not using local storage anymore
+    console.log(`[useVaultInteractions] Clearing vault data for ${address} (local storage disabled)`);
+  }, []);
 
-    try {
-      // Clear vault-related data from localStorage
-      const keysToRemove = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && (key.startsWith(`vault_${address.toLowerCase()}`) || 
-                   key === `user_vaults_${address.toLowerCase()}`)) {
-          keysToRemove.push(key);
-        }
-      }
-      keysToRemove.forEach(key => localStorage.removeItem(key));
-    } catch (error) {
-      console.error('Error clearing vault data:', error);
-    }
-  }, [isClient]);
-
-  // Update the ref when userVaults changes
+  // Update the ref when userVaults changes or when loading state changes
   useEffect(() => {
     if (!isClient) return;
 
-    if (userVaults.length > 0) {
-      console.log('[useVaultInteractions] Received vaults from blockchain:', userVaults);
-      
-      // Store the first vault address as the last used
-      lastAddressRef.current = userVaults[0];
-      
-      // If we have a newly created vault, prioritize selecting it
-      if (newlyCreatedVault && userVaults.includes(newlyCreatedVault)) {
-        console.log('[useVaultInteractions] Selecting newly created vault:', newlyCreatedVault);
-        setVaultAddress(newlyCreatedVault);
-        setNewlyCreatedVault(null);
-      } 
-      // If no vault is selected or the selected vault is not in the list, select the first one
-      else if (!vaultAddress || !userVaults.includes(vaultAddress)) {
-        console.log('[useVaultInteractions] Selecting first vault from blockchain:', userVaults[0]);
-        setVaultAddress(userVaults[0]);
-      }
-      
-      // Always update local storage with the latest vaults from blockchain
-      try {
-        if (address) {
-          console.log('[useVaultInteractions] Updating local storage with vaults from blockchain');
-          localStorage.setItem(`user_vaults_${address.toLowerCase()}`, JSON.stringify(userVaults));
+    // Only proceed if we're not loading
+    if (!isLoadingVaults && vaultsInitialized) {
+      if (userVaults.length > 0) {
+        console.log('[useVaultInteractions] Received vaults from blockchain:', userVaults);
+        
+        // Store the first vault address as the last used
+        lastAddressRef.current = userVaults[0];
+        
+        // If we have a newly created vault, prioritize selecting it
+        if (newlyCreatedVault && userVaults.includes(newlyCreatedVault)) {
+          console.log('[useVaultInteractions] Selecting newly created vault:', newlyCreatedVault);
+          setVaultAddress(newlyCreatedVault);
+          setNewlyCreatedVault(null);
+        } 
+        // If no vault is selected or the selected vault is not in the list, select the first one
+        else if (!vaultAddress || !userVaults.includes(vaultAddress)) {
+          console.log('[useVaultInteractions] Selecting first vault from blockchain:', userVaults[0]);
+          setVaultAddress(userVaults[0]);
         }
-      } catch (error) {
-        console.error('Error storing vaults in local storage:', error);
+      } else if (vaultsInitialized) {
+        // Only log 'No vaults found' after we've fully initialized and confirmed there are no vaults
+        console.log('[useVaultInteractions] No vaults found on blockchain after initialization');
       }
-    } else {
-      console.log('[useVaultInteractions] No vaults found on blockchain');
     }
-  }, [userVaults, isClient, address, newlyCreatedVault, vaultAddress]);
+  }, [userVaults, isClient, address, newlyCreatedVault, vaultAddress, isLoadingVaults, vaultsInitialized]);
 
   // Handle address changes and cleanup
   useEffect(() => {

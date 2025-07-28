@@ -1,24 +1,19 @@
 'use client';
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useReadContract } from 'wagmi';
 import { XmentoVaultABI } from './XmentoVaultABI';
 import { formatEther } from 'viem';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Loader2 } from 'lucide-react';
 
 type VaultStatusListProps = {
     vaults: `0x${string}`[];
     selectedVault: `0x${string}` | null;
     onSelectVault: (vaultAddress: `0x${string}`) => void;
     chainId: number;
-};
-
-type VaultStatus = {
-    address: `0x${string}`;
-    tvl: string;
-    isActive: boolean;
+    isLoading?: boolean;
 };
 
 export function VaultStatusList({
@@ -26,28 +21,37 @@ export function VaultStatusList({
     selectedVault,
     onSelectVault,
     chainId,
+    isLoading = false,
 }: VaultStatusListProps) {
     return (
-
-        <ScrollArea className="h-full w-full p-4">
-            <div className="space-y-2">
-                {vaults.length === 0 ? (
-                    <div className="text-sm text-muted-foreground text-center py-4">
-                        No vaults found
-                    </div>
-                ) : (
-                    vaults.map((vault) => (
-                        <VaultStatusItem
-                            key={vault}
-                            vaultAddress={vault}
-                            isSelected={vault === selectedVault}
-                            onClick={() => onSelectVault(vault)}
-                            chainId={chainId}
-                        />
-                    ))
-                )}
-            </div>
-        </ScrollArea>
+        <div className="h-full flex flex-col">
+            <ScrollArea className="flex-1 w-full px-2">
+                <div className="space-y-2">
+                    {isLoading && !vaults.length ? (
+                        <div className="flex flex-col items-center justify-center p-6 space-y-4">
+                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                            <p className="text-sm text-muted-foreground">Loading vaults...</p>
+                        </div>
+                    ) : vaults.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center p-6 text-center space-y-4">
+                            <p className="text-sm text-muted-foreground">
+                                No vaults found
+                            </p>
+                        </div>
+                    ) : (
+                        vaults.map((vault) => (
+                            <VaultStatusItem
+                                key={vault}
+                                vaultAddress={vault}
+                                isSelected={vault === selectedVault}
+                                onClick={() => onSelectVault(vault)}
+                                chainId={chainId}
+                            />
+                        ))
+                    )}
+                </div>
+            </ScrollArea>
+        </div>
 
     );
 }
@@ -81,7 +85,7 @@ function VaultStatusItem({
         <div
             className={`p-3 rounded-lg border cursor-pointer transition-colors ${isSelected
                     ? 'bg-primary/10 border-primary'
-                    : 'hover:bg-muted/50 border-border'
+                    : 'hover:bg-muted/50 border-border hover:border-primary/50'
                 }`}
             onClick={onClick}
         >

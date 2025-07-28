@@ -123,8 +123,8 @@ export function VaultInteraction({ }: VaultInteractionProps): React.JSX.Element 
 
             <TabsContent value="vault">
               <div className="lg:col-span-1 lg:col-start-1 flex flex-col space-y-4">
-                <div className="bg-card rounded-lg border p-4 h-[calc(100vh-250px)] min-h-[400px] max-h-[600px] flex flex-col">
-                  <div className="flex justify-between items-center mb-3">
+                <div className="bg-card rounded-lg border p-4 flex flex-col h-[400px] lg:h-[500px] lg:min-h-[400px]">
+                  <div className="flex justify-between items-center mb-4">
                     <h3 className="font-medium">Your Vaults</h3>
                     <button
                       onClick={handleRefresh}
@@ -135,21 +135,24 @@ export function VaultInteraction({ }: VaultInteractionProps): React.JSX.Element 
                       <Loader2 className={`h-4 w-4 ${isLoadingVaults ? 'animate-spin' : ''}`} />
                     </button>
                   </div>
-                  <div className="flex-1 overflow-y-auto pr-2 -mx-2 px-2">
+                  <div className="flex-1 min-h-0">
                     <VaultStatusList
                       vaults={userVaults}
                       selectedVault={vaultAddress}
                       onSelectVault={setVaultAddress}
                       chainId={chainId}
+                      isLoading={isLoadingVaults}
                     />
                   </div>
-                  <div className="flex pr-2 mb-3 justify-between">
-                    <span className="text-xs text-muted-foreground">{userVaults.length} Vault(s) Found</span>
-                    <span className="ml-2 text-xs text-muted-foreground text-right">Last updated {lastFetched ? new Date(lastFetched).toLocaleString() : 'Never'}</span>
+                  <div className="flex justify-between items-center pt-2 mt-2 border-t">
+                    <span className="text-xs text-muted-foreground">{userVaults.length} Vault{userVaults.length !== 1 ? 's' : ''} Found</span>
+                    <span className="text-xs text-muted-foreground">
+                      {lastFetched ? `Updated ${new Date(lastFetched).toLocaleTimeString()}` : 'Never updated'}
+                    </span>
                   </div>
                 </div>
 
-                <div className="mt-4">
+                <div className="mt-4 p-4">
                   <button
                     onClick={handleCreateVaultWrapper}
                     disabled={isCreatingVault}

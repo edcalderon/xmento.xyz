@@ -42,36 +42,41 @@ export function useVaultRefresh(
 
   // Auto-refresh when address, chain, or interval changes
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let interval: NodeJS.Timeout | null = null;
 
     const startPolling = () => {
+      // Clear any existing interval
       if (interval) {
         clearInterval(interval);
       }
       
-      const newPollingInterval = {
-        manual: 100000000000000,
-        '30s': 30000,
-        '1m': 60000,
-        '5m': 300000,
-        '30m': 1800000,
-      }[refreshInterval];
+      // Only set up auto-refresh if not in manual mode
+      if (refreshInterval !== 'manual') {
+        const newPollingInterval = {
+          '30s': 30000,
+          '1m': 60000,
+          '5m': 300000,
+          '30m': 1800000,
+        }[refreshInterval] || 0;
 
-      if (newPollingInterval > 0) {
-        interval = setInterval(handleRefresh, newPollingInterval);
+        if (newPollingInterval > 0) {
+          console.log(`[useVaultRefresh] Setting up auto-refresh every ${refreshInterval}`);
+          interval = setInterval(handleRefresh, newPollingInterval);
+        }
+      } else {
+        console.log('[useVaultRefresh] Auto-refresh disabled (manual mode)');
       }
     };
 
-    // Clear existing interval and start new one
-    startPolling();
-
-    // Trigger a refresh when interval changes
+    // Only start polling if we have a valid interval
     if (refreshInterval !== 'manual') {
-      handleRefresh();
+      startPolling();
     }
 
+    // Cleanup on unmount or when dependencies change
     return () => {
       if (interval) {
+        console.log('[useVaultRefresh] Clearing auto-refresh interval');
         clearInterval(interval);
       }
     };
