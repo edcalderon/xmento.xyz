@@ -49,7 +49,10 @@ export function WalletConnectButton({
     isConnecting,
     isSwitching,
     showNetworkSwitcher,
+    otherAccounts: handlers.otherAccounts || [],
   };
+  
+  const { otherAccounts = [] } = handlers;
 
   const connectButton = (
     <Button
@@ -81,7 +84,7 @@ export function WalletConnectButton({
   }
 
   if (isMobile) {
-    return <WalletViewMobile {...commonProps} />;
+    return <WalletViewMobile {...commonProps} otherAccounts={otherAccounts} />;
   }
-  return <WalletViewDesktop {...commonProps} />;
+  return <WalletViewDesktop {...commonProps} otherAccounts={otherAccounts} />;
 }
