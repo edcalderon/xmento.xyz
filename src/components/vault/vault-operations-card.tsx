@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAccount, useReadContract  } from 'wagmi';
+import { useAccount, useReadContract } from 'wagmi';
 import { formatEther } from 'viem';
+import { Copy, ExternalLink } from 'lucide-react';
 import { XmentoVaultABI } from './XmentoVaultABI';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +11,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/components/ui/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { shortenAddress, handleViewOnExplorer, copyToClipboard } from '@/lib/utils';
 
 type TokenSymbol = 'cUSD' | 'cEUR' | 'cREAL';
 
@@ -37,7 +40,7 @@ export function VaultOperationsCard({
   const [depositAmount, setDepositAmount] = useState('');
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [vaultTVL, setVaultTVL] = useState<number>(0);
-  
+
   // Read user balance with loading state management
   const { data: tokenBalance, refetch: refetchBalance, isFetching: isBalanceFetching } = useReadContract({
     address: vaultAddress || undefined,
@@ -71,18 +74,18 @@ export function VaultOperationsCard({
   }, [tvl]);
 
   // Format TVL for display
-  const formattedTVL = vaultTVL 
-    ? `$${vaultTVL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
+  const formattedTVL = vaultTVL
+    ? `$${vaultTVL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     : 'Loading...';
 
   // Format balance for display
-  const formattedBalance = tokenBalance 
-    ? `${formatEther(tokenBalance)} ${selectedToken}` 
+  const formattedBalance = tokenBalance
+    ? `${formatEther(tokenBalance)} ${selectedToken}`
     : '0.00';
-    
+
   // Track if we have initial data
   const hasInitialData = tokenBalance !== undefined && tvl !== undefined;
-  
+
   // Only show loading state when we don't have data and are still fetching
   const isLoading = (!hasInitialData && (isBalanceFetching || isTVLFetching));
 
@@ -121,11 +124,42 @@ export function VaultOperationsCard({
 
   return (
     <div className="w-full max-w-full overflow-x-hidden">
-      <Card className={`w-full mb-6 transition-colors ${vaultAddress ? 'bg-primary/5 border-primary' : ''} ${isLoading ? 'opacity-50 pointer-events-none' : ''}`}>
+      <Card className={`w-full mb-6 transition-colors ${vaultAddress ? 'bg-primary/5 border-primary' : ''} ${isLoading ? 'opacity-50 pointer-events-none' : ''} relative`}>
+        {/* Top right icons */}
+        {vaultAddress && (
+          <div className="absolute top-4 right-4 flex gap-2">
+            <button 
+              onClick={async () => {
+                const success = await copyToClipboard(vaultAddress);
+                toast({
+                  title: success ? 'Success' : 'Error',
+                  description: success ? 'Address copied to clipboard' : 'Failed to copy address',
+                  variant: success ? 'default' : 'destructive',
+                });
+              }}
+              className="p-1.5 rounded-full hover:bg-muted transition-colors"
+              title="Copy address"
+            >
+              <Copy className="h-4 w-4" />
+            </button>
+            <button 
+              onClick={() => handleViewOnExplorer(vaultAddress)}
+              className="p-1.5 rounded-full hover:bg-muted transition-colors"
+              title="View on Explorer"
+            >
+              <ExternalLink className="h-4 w-4" />
+            </button>
+          </div>
+        )}
         <CardHeader className="p-4 md:p-6">
-          <CardTitle className="text-lg md:text-xl">Vault: <span className="truncate block">{vaultAddress}</span></CardTitle>
-          <CardDescription className="text-sm md:text-base">
-            Manage your assets in this Xmento Vault
+          <CardTitle className="text-lg md:text-xl">
+            <Badge variant={'default'} className="mr-2">
+              Active
+            </Badge>
+            <span className="truncate">Vault: {vaultAddress ? shortenAddress(vaultAddress) : 'N/A'}</span>
+          </CardTitle>
+          <CardDescription className="text-sm md:text-base m-2">
+            Manage your assets in this Vault
           </CardDescription>
         </CardHeader>
         <CardContent className="p-4 md:p-6 pt-0">
@@ -176,8 +210,8 @@ export function VaultOperationsCard({
                     <option value="cREAL">cREAL</option>
                   </select>
                 </div>
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   disabled={!vaultAddress || isWrongNetwork}
                   className="w-full"
                 >
@@ -214,8 +248,8 @@ export function VaultOperationsCard({
                     {selectedToken}
                   </div>
                 </div>
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   disabled={!vaultAddress || isWrongNetwork}
                   className="w-full"
                 >
